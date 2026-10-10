@@ -1,0 +1,61 @@
+# The workspace of the contracts repository. Every crate under crates/ is a
+# member; add a crate by adding its directory.
+[workspace]
+# The resolver of edition 2024, the monorepo's, so a crate resolves the same
+# features and the same MSRV-aware versions on both sides of an extraction.
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+repository = "https://github.com/TheClockwyrks/contracts"
+# A crate of The Test Cabinet is consumed by its git source, never from
+# crates.io, so none is published; a member says `publish.workspace = true`, and
+# Cargo refuses that key when the root holds none to inherit.
+publish = false
+
+# Warnings-as-errors, baked into the manifests for every member crate that
+# opts in with `[lints] workspace = true`, so a plain `cargo build` enforces
+# the policy the clippy gate enforces on the command line.
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+all = "deny"
+
+# The crates of the other repositories this one may depend on, each at its
+# public source, the GitHub mirror, and the tag its dependents pin. The
+# superrepo's .cargo/config.toml redirects every one of these to the sibling
+# checkout, so a build inside the superrepo never fetches them. A manifest
+# never names an Azure URL or a path outside the repository: the
+# dependency-edges gate refuses both.
+[workspace.dependencies]
+# contracts depends on no crate of another repository.
+
+# The third-party crates the members share, at the requirements the monorepo
+# held them to when the crates were extracted from it.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+cuid2 = "0.1"
+toml = "0.8"
+toml_edit = { version = "0.25", features = ["serde"] }
+semver = { version = "1", features = ["serde"] }
+handlebars = "6"
+tempfile = "3"
+schemars = "1"
+ts-rs = { version = "12", features = ["no-serde-warnings"] }
+which = "8"
+tracing = "0.1"
+sha2 = "0.10"
+hex = "0.4"
+percent-encoding = "2"
+
+# The SHA-256 digests the contracts and suites crates take (of a record, of a
+# suite's content) would otherwise run unoptimised in a test build. Optimising the hash changes no output, only how long the
+# digest takes, and matches the profile the monorepo builds these crates with.
+[profile.dev.package.sha2]
+opt-level = 3

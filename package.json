@@ -1,0 +1,31 @@
+{
+  "name": "contracts-repository",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:md": "markdownlint-cli2",
+    "spell": "cspell lint --no-progress --cache",
+    "gen:contract": "node scripts/gen-contract.mjs"
+  },
+  "devDependencies": {
+    "@vitest/browser-playwright": "5.0.0",
+    "@vitest/coverage-v8": "5.0.0",
+    "cspell": "10.2.2",
+    "markdownlint-cli2": "0.22.1",
+    "playwright": "1.63.0",
+    "prettier": "3.8.4",
+    "typescript": "^6",
+    "vitest": "5.0.0"
+  }
+}

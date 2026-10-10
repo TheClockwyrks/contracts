@@ -11,7 +11,7 @@
 //!
 //! Like the rest of the contract, these types are the **source of truth**: the
 //! TypeScript bindings (`packages/run-record/src/gg.ts`) and the JSON Schemas
-//! (`apps/docs/public/schema/gg/*.json`) are generated from them (they derive
+//! (`schema/gg/*.json`) are generated from them (they derive
 //! `ts_rs::TS` + `schemars::JsonSchema` behind the `contract` feature) by
 //! `crates/contract-codegen` — never edited by hand. Regenerate with
 //! `npm run gen:contract` after any change here. JSON is camelCase.

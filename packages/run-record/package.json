@@ -1,9 +1,13 @@
 {
   "name": "@clockwyrks/run-record",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheClockwyrks/contracts.git",
+    "directory": "packages/run-record"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -49,7 +53,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/tsconfig.tsbuildinfo",
+    "!dist/**/*.map"
   ],
   "scripts": {
     "build": "tsc -b",
@@ -59,6 +65,9 @@
     "typescript": "^6"
   },
   "dependencies": {
-    "@clockwyrks/asset-contract": "*"
+    "@clockwyrks/asset-contract": "^0.1.0"
+  },
+  "publishConfig": {
+    "registry": "https://pkgs.dev.azure.com/genyume/the-test-cabinet/_packaging/the-test-cabinet/npm/registry/"
   }
 }

@@ -2,7 +2,7 @@
 //!
 //! See `docs/run-records.md`. This type tree is the **source of truth** for the
 //! contract: the TypeScript bindings (`packages/run-record/src/index.ts`) and the
-//! JSON Schema (`apps/docs/public/schema/core/run-record.schema.json`) are
+//! JSON Schema (`schema/core/run-record.schema.json`) are
 //! generated from these types (which derive `ts_rs::TS` + `schemars::JsonSchema`
 //! behind the `contract` feature) by `crates/contract-codegen` — never edited by
 //! hand. Regenerate with `npm run gen:contract` after any change here. JSON is

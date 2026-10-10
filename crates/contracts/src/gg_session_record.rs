@@ -50,7 +50,7 @@
 //!
 //! Like the rest of the contract these types are the source of truth: the TypeScript
 //! bindings (`packages/run-record/src/gg-session-record.ts`) and the JSON Schemas
-//! (`apps/docs/public/schema/gg/session-record.schema.json`) are generated from them by
+//! (`schema/gg/session-record.schema.json`) are generated from them by
 //! `crates/contract-codegen` and are never edited by hand. JSON is camelCase.
 //!
 //! Four names keep the word this record used to be called by: the in-container journal's

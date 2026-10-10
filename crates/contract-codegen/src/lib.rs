@@ -974,9 +974,9 @@ pub fn write_ts(root: &Path, package: &str, file: &str, content: &str) -> Result
 }
 
 /// The directory, relative to the workspace root, that this generator's JSON Schema
-/// documents are written under. It is where the documentation site publishes them
-/// from, so a document's path under it is its published URL's path under `/schema/`.
-pub const SCHEMA_DIR: &str = "apps/docs/public/schema";
+/// documents are written under. The documentation site publishes it as `/schema/`,
+/// so a document's path under it is its published URL's path under `/schema/`.
+pub const SCHEMA_DIR: &str = "schema";
 
 /// Write one of this generator's JSON Schema documents under
 /// `<root>/`[`SCHEMA_DIR`].
