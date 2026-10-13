@@ -2,7 +2,7 @@
 # kit was last rendered or updated from. Copier maintains it through the
 # superrepo's scripts/repos/render.py; a change made here is overwritten by
 # the next update.
-_commit: v0.6.3-4932-g3871188d3
+_commit: v0.6.3-4973-gecb8ff16c
 _src_path: ..
 description: The data contracts every component reads and writes.
 kind: library
