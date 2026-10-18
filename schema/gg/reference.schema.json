@@ -162,7 +162,7 @@
       "type": "array"
     },
     "ggVersion": {
-      "description": "The version of the `test-cabinet-gg` crate this reference was projected from — its\n`CARGO_PKG_VERSION`, which is `core`'s own, since the two crates are versioned in\nlockstep.\n\nStamped on the page so a reader can tell *which* gg the prose in front of them belongs\nto. It is the version of the binary that wrote the documents, which for a deployment is the\ngg its image was built from.",
+      "description": "The version of the `test-cabinet-gg` crate this reference was projected from — its\n`CARGO_PKG_VERSION`, the version `gg --version` reports.\n\nStamped on the page so a reader can tell *which* gg the prose in front of them belongs\nto. It is the version of the binary that wrote the documents, which for a deployment is the\ngg its image was built from.",
       "type": "string"
     },
     "languages": {
