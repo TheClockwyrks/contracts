@@ -39,7 +39,7 @@
 //! [agent surface](crate::gg::GgTelemetryKind::AgentSurface) event, recorded per instance — and a
 //! page that tried to answer both would be answering neither.
 //!
-//! The DTOs live here because `core` is what the backend and `contract-codegen` already
+//! The DTOs live here because `contracts` is what the backend and `contract-codegen` already
 //! depend on, so the TypeScript bindings and JSON Schemas come out of the same generator every
 //! other contract type's do. Nothing in this module computes anything — it is the wire shape
 //! and its documentation, and the one place a field's meaning is written down. The one exception
@@ -63,7 +63,7 @@ use crate::gg::GgProgramLanguage;
 /// `gg reference --out` writes it **last**, after every arm, precisely so that this file existing is
 /// evidence the arms beside it are complete rather than half-written.
 ///
-/// A function in `core` rather than a `const` in each crate because the writer (`test-cabinet-gg`)
+/// A function in `contracts` rather than a `const` in each crate because the writer (`test-cabinet-gg`)
 /// and the reader (`test-cabinet-backend`) do not link each other and never will — that boundary is
 /// the whole point of shipping the projection as files — so a filename spelled once on each side is
 /// a contract with two authorities and no gate between them. Renaming it here is a compile error in
@@ -76,7 +76,7 @@ pub fn index_file() -> &'static str {
 ///
 /// Keyed on the language's [id](GgProgramLanguage::id) — the same string the URL segment and a run's
 /// `language` capability param carry — so the file a reader opens for an arm is named after the
-/// thing an operator asked for. See [`index_file`] for why the spelling lives in `core`.
+/// thing an operator asked for. See [`index_file`] for why the spelling lives in `contracts`.
 pub fn document_file(language: GgProgramLanguage) -> String {
     format!("{}.json", language.id())
 }
@@ -93,8 +93,7 @@ pub fn document_file(language: GgProgramLanguage) -> String {
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct GgReference {
     /// The version of the `test-cabinet-gg` crate this reference was projected from — its
-    /// `CARGO_PKG_VERSION`, which is `core`'s own, since the two crates are versioned in
-    /// lockstep.
+    /// `CARGO_PKG_VERSION`, the version `gg --version` reports.
     ///
     /// Stamped on the page so a reader can tell *which* gg the prose in front of them belongs
     /// to. It is the version of the binary that wrote the documents, which for a deployment is the

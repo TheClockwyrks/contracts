@@ -263,8 +263,7 @@ export type GgReferenceLanguage = {
 export type GgReference = {
   /**
    * The version of the `test-cabinet-gg` crate this reference was projected from — its
-   * `CARGO_PKG_VERSION`, which is `core`'s own, since the two crates are versioned in
-   * lockstep.
+   * `CARGO_PKG_VERSION`, the version `gg --version` reports.
    *
    * Stamped on the page so a reader can tell *which* gg the prose in front of them belongs
    * to. It is the version of the binary that wrote the documents, which for a deployment is the
