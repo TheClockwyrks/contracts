@@ -3,9 +3,9 @@
 //!
 //! See `docs/results.md`. A review is curatorial, authored by a person after
 //! playing a finished build, and deliberately not part of the
-//! [run record](crate::run_record). The writeup parser and every scoring rule over
-//! these shapes live in `test_cabinet_core::review`, which re-exports everything
-//! here.
+//! [run record](crate::run_record). The writeup and its parser are here too; every
+//! scoring rule over these shapes lives in the backend's `review` module, which
+//! re-exports everything here.
 //!
 //! The rating tiers here are mirrored as a TypeScript union in
 //! `packages/ui/src/ratings.ts`; keep the two in lockstep.
@@ -163,7 +163,7 @@ impl AestheticRating {
 
     /// The worst (lowest) aesthetic rating among `ratings`, or `None` when empty.
     /// Like [`Rating::worst`], a run's overall aesthetic rating is the worst
-    /// across its reviews' run-wide tiers (see `test_cabinet_core::review::aggregate_aesthetic`).
+    /// across its reviews' run-wide tiers (see `test_cabinet_backend::review::aggregate_aesthetic`).
     pub fn worst(ratings: impl IntoIterator<Item = AestheticRating>) -> Option<AestheticRating> {
         ratings.into_iter().max_by_key(|rating| rating.rank())
     }

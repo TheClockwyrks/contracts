@@ -1976,7 +1976,7 @@ impl GgCapabilitySet {
     /// **stored** set — a record it did not launch, and so a record that may be
     /// hand-written or corrupt — must ask [`Self::agents`] directly rather than assert a
     /// root through this. The document builder
-    /// (`test_cabinet_core::gg_query::build_run_doc`) is the standing example.
+    /// (`test_cabinet_backend::gg_query::build_run_doc`) is the standing example.
     pub fn root(&self) -> &GgAgentConfig {
         self.agents
             .first()
@@ -2061,7 +2061,7 @@ impl GgCapabilitySet {
     /// changes the run, so asking only the root silently ignores the configuration.
     ///
     /// The query language's `cap.<id>` fields
-    /// (`test_cabinet_core::gg_query::build_run_doc`) are the case that keeps it:
+    /// (`test_cabinet_backend::gg_query::build_run_doc`) are the case that keeps it:
     /// `avg(cap.compaction)` is meant to be an enablement *rate*, and a root-only read
     /// would score a run that configured the capability per-agent as not having used it at
     /// all.
@@ -4967,7 +4967,7 @@ impl GgLimitKind {
     ];
 
     /// This ceiling's stable wire value — exactly the string serde writes, so the
-    /// `limit` document field (`test_cabinet_core::gg_query::build_run_doc`) that buckets
+    /// `limit` document field (`test_cabinet_backend::gg_query::build_run_doc`) that buckets
     /// runs by it and the JSON a run records can never disagree. Pinned over
     /// [`ALL`](Self::ALL) by a test.
     pub const fn as_str(self) -> &'static str {

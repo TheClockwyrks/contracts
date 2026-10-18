@@ -130,7 +130,7 @@ impl HarnessSlug {
     /// endpoint. True for Cline, Goose, Kilo, OpenCode, and Pi; false for Codex
     /// (OpenAI), Claude (Anthropic), and Antigravity (Google). This governs
     /// whether a trailing `:free`-style OpenRouter variant tag is stripped when
-    /// canonicalizing the model id (see `test_cabinet_core::model_id`). A drift test keeps
+    /// canonicalizing the model id (see `test_cabinet_backend::model_id`). A drift test keeps
     /// this in step with each harness's `api_key_env`.
     ///
     /// Gg is included: for Phase 0 it reaches its model through OpenRouter with
@@ -152,7 +152,7 @@ impl HarnessSlug {
     /// prefix is prepended to the model id at launch — true only for OpenCode and
     /// Kilo Code, which pass the id verbatim to a CLI that routes through OpenRouter
     /// and so must launch with the `openrouter/` prefix (see
-    /// `test_cabinet_core::model_id::launch_model_id`). The other OpenRouter-authenticated
+    /// `test_cabinet_backend::model_id::launch_model_id`). The other OpenRouter-authenticated
     /// harnesses (Cline, Goose, Pi) pass a provider flag internally and launch the
     /// id unprefixed, so they are **not** included here — contrast the broader
     /// [`Self::routes_through_openrouter`]. Mirrors the run form's

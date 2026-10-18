@@ -62,6 +62,12 @@ pub fn find_build_output(impl_dir: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_dir())
 }
 
+/// Serving one file of a build under the per-run base path it is mounted at; see
+/// [`serve_build_file`].
+#[path = "layout.build.rs"]
+mod build;
+pub use build::{ServedBuildFile, serve_build_file};
+
 // --- proof naming ------------------------------------------------------------
 
 /// The name a proof's bytes are labelled from: its recorded `dest`, falling back to
@@ -126,7 +132,7 @@ pub const REFERENCE_LOCK_FILENAME: &str = "reference-builds.lock.json";
 
 /// The run-root-relative directory synthesized *actual* validation media is
 /// collected under, so it travels with the published implementation and is served
-/// by `test_cabinet_core::playable::serve_validation_file`.
+/// by `test_cabinet_artifacts::playable::serve_validation_file`.
 pub const VALIDATION_MEDIA_DIR: &str = ".vendor/validation";
 
 /// The directory a case version's **baseline** validation media lives under, one
@@ -208,7 +214,7 @@ pub fn validation_published_extension(kind: MediaKind) -> &'static str {
 /// The flat, addressable file name a synthesized output is stored and served under:
 /// `<verdict>__<output>.<ext>`. Kept flat (one path segment) so it routes through the
 /// one-segment `/validation/{file}` endpoints unchanged, and shared with
-/// `test_cabinet_core::playable::serve_validation_file` and the gallery URL resolver.
+/// `test_cabinet_artifacts::playable::serve_validation_file` and the gallery URL resolver.
 ///
 /// `verdict_id` is the id of the verdict unit the output backs — a whole item's own id
 /// (`<item>`, for an item validated as a whole) or a sub-item's composite id

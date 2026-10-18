@@ -2,7 +2,7 @@
 //! [run document](GgRunDoc) it runs over, and the results it produces.
 //!
 //! Every gg run is reified as one flat map of dotted, typed field names to scalars
-//! ([`GgRunDoc`], built by `test_cabinet_core::gg_query::build_run_doc`), and a
+//! ([`GgRunDoc`], built by `test_cabinet_backend::gg_query::build_run_doc`), and a
 //! query is a pipeline over that corpus:
 //!
 //! ```text
@@ -84,7 +84,7 @@
 //!   `<`, `>`, or locale collation — both disagree with code-point order above the
 //!   BMP. The fixture carries an astral-plane case for exactly this.
 //! - **Quantiles use one definition** — the repository's existing linearly
-//!   interpolated `quantile` (`test_cabinet_core::comparison_stats`), reused verbatim
+//!   interpolated `quantile` (`test_cabinet_backend::comparison_stats`), reused verbatim
 //!   rather than reinvented, so gg's box plots match the comparison charts'.
 //! - **Bucket alignment is UTC and explicit.** Minute, hour and day intervals floor
 //!   against the epoch; **week intervals floor against a Monday**
@@ -105,11 +105,11 @@ use serde::{Deserialize, Serialize};
 /// The most group-by keys one [`stats`](GgStatsStage) stage may carry. Visualizations
 /// bind the first two; a third is table-only, and beyond that a bucket table is
 /// unreadable and the cardinality explodes. The TypeScript compiler rejects a longer
-/// list at parse time; `evaluate` (`test_cabinet_core::gg_query::evaluate`) clamps to the
+/// list at parse time; `evaluate` (`test_cabinet_backend::gg_query::evaluate`) clamps to the
 /// same bound so a hand-built query cannot get further.
 pub const GG_MAX_GROUP_KEYS: usize = 3;
 
-/// How many distinct values `field_catalog` (`test_cabinet_core::gg_query`) reports per
+/// How many distinct values `field_catalog` (`test_cabinet_backend::gg_query`) reports per
 /// field. The sidebar shows these as click-to-insert value suggestions with their counts,
 /// so the list is a *starting point*, not an enumeration — a high-cardinality field (a
 /// run id, a timestamp) is not meant to be browsed value by value.
