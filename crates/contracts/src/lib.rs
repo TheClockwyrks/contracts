@@ -6,7 +6,8 @@
 //! and the engine identity a run names, the test suite format, the ingest feed, the
 //! job API and publish-job API wire types, the reference lock, the match-play
 //! shapes, the live-preview frame, a review's writeup, the harness names and the
-//! layout of a run tree and a case version. Each is read or written by more than
+//! layout of a run tree and a case version, the accounts and comparison shapes,
+//! the backend API's wire types and gg's built-in system-prompt templates. Each is read or written by more than
 //! one of the driver, the backend, the console, gg and the seeded packages, which
 //! is what puts it here rather than in the crate that happens to produce it.
 //!
@@ -15,9 +16,13 @@
 //! types behind the `contract` feature. See the documentation site's
 //! `components/contracts/overview` page.
 
+pub mod accounts;
 pub mod asset_reference;
+pub mod backend_api;
 pub mod code_analysis;
 pub mod cold_storage;
+pub mod comparison;
+pub mod comparison_stats;
 pub mod engine;
 pub mod event;
 pub mod execution;
@@ -26,6 +31,7 @@ pub mod gg_query;
 pub mod gg_reference;
 pub mod gg_session_journal;
 pub mod gg_session_record;
+pub mod gg_system_prompt;
 pub mod harness;
 pub mod ingest;
 pub mod job_api;

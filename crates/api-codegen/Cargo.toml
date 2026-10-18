@@ -1,0 +1,25 @@
+[package]
+name = "api-codegen"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "api-codegen"
+path = "src/main.rs"
+
+# The generator for the backend's API package (`@clockwyrks/backend-api`) and its
+# JSON Schemas. It drives the `contract` feature of `test-cabinet-contracts`, whose
+# backend API types (`backend_api`, `accounts`, `comparison`, `comparison_stats`,
+# `match_play`) derive `ts_rs::TS` / `schemars::JsonSchema` behind it, and reuses
+# `contract-codegen`'s library for the emission machinery and for the data
+# contract's modules and documents, which it reads as external homes and never
+# writes.
+[dependencies]
+contract-codegen = { path = "../contract-codegen" }
+test-cabinet-contracts = { path = "../contracts", features = ["contract"] }
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

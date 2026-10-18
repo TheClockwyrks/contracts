@@ -45,9 +45,8 @@ hex = { workspace = true }
 percent-encoding = { workspace = true }
 
 # Contract codegen (TS bindings + JSON Schema), derived on the same types behind the
-# `contract` feature and driven by the `contract-codegen` generator (and, through
-# core's feature of the same name, read by `api-codegen`); off by default so normal
-# builds never compile them.
+# `contract` feature and driven by the `contract-codegen` and `api-codegen`
+# generators; off by default so normal builds never compile them.
 ts-rs = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 
@@ -58,7 +57,7 @@ tempfile = { workspace = true }
 
 [features]
 # Derive `ts_rs::TS` + `schemars::JsonSchema` on the public data-contract types.
-# Never enabled by a normal build; `test-cabinet-core/contract` turns it on.
+# Never enabled by a normal build; the two generators turn it on.
 contract = ["dep:ts-rs", "dep:schemars"]
 
 [lints]

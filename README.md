@@ -17,15 +17,19 @@ between the repositories.
   the contract, with its fixtures under `crates/contracts/fixtures/`.
 - `crates/suites` (`test-cabinet-suites`): the test-suite runtime, the engine
   catalog resolver, the validator runners and the browser driver.
-- `crates/contract-codegen`: generates the TypeScript packages and the JSON
-  Schemas from the contract's types (`npm run gen:contract`); the
-  `contract-drift` gate fails when a committed copy is stale.
-- `packages/run-record` (`@clockwyrks/run-record`) and `packages/asset-contract`
-  (`@clockwyrks/asset-contract`): the generated TypeScript, published to the
+- `crates/contract-codegen` and `crates/api-codegen`: generate the TypeScript
+  packages and the JSON Schemas from the contract's types and the backend API
+  types (`npm run gen:contract`, which also mirrors gg's system-prompt
+  templates, `crates/contracts/templates/gg/`, into the backend API package);
+  the `contract-drift` gate fails when a committed copy is stale.
+- `packages/run-record` (`@clockwyrks/run-record`), `packages/asset-contract`
+  (`@clockwyrks/asset-contract`) and `packages/backend-api`
+  (`@clockwyrks/backend-api`): the generated TypeScript, published to the
   project's feed. The asset contract is seeded into a model's workspace, so
   `tests/asset-contract.test.ts` holds its prose to the seeded vocabulary.
-- `schema/core/` and `schema/gg/`: the generated JSON Schemas, which the
-  documentation site publishes under `/schema/`.
+- `schema/`: the generated JSON Schemas (`core/`, `gg/`, `backend-api/`,
+  `coverage/`, `jobs-api/`, `snapshot/`), which the documentation site
+  publishes under `/schema/`.
 - `history/`: how this repository's history was extracted from the monorepo.
 
 ## Getting started

@@ -17,8 +17,7 @@ path = "src/main.rs"
 # `ts_rs::TS` / `schemars::JsonSchema` derives on its data-contract types are
 # available to emit TypeScript bindings and JSON Schemas from a single source. It
 # depends on nothing else of ours: the backend API package and its schemas are
-# `api-codegen`'s (crates/api-codegen), which reuses this crate's library and is the
-# one that compiles the core and the backend.
+# `api-codegen`'s (crates/api-codegen), which reuses this crate's library.
 [dependencies]
 test-cabinet-contracts = { path = "../contracts", features = ["contract"] }
 ts-rs = { workspace = true }
