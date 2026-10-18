@@ -1,9 +1,13 @@
 //! Provider identity: the one rule for whether two spellings name the same
-//! OpenRouter provider.
+//! OpenRouter provider, and the modality token a model's input is checked for.
 //!
 //! The price lookup itself (the OpenRouter client, the price tables, the cost
-//! computation) is runtime and lives in `test_cabinet_core::pricing`, which
-//! re-exports these.
+//! computation) is runtime and belongs to the party that prices a run; gg and the
+//! price lookup both read these.
+
+/// The modality token OpenRouter uses for image input — the one gg checks before
+/// putting a picture in a prompt.
+pub const MODALITY_IMAGE: &str = "image";
 
 /// Whether `a` and `b` name the same OpenRouter provider.
 ///

@@ -3,19 +3,19 @@
 //! A run record and its parts (the run's subject and state, its events, its
 //! validation summary and its review), gg's configuration, telemetry and session
 //! record, the TCQ query contract, the code-analysis contract, a resolved test case
-//! and the engine identity a run names, the test suite format, the ingest feed, and
-//! the layout of a run tree and a case version. Each is read or
-//! written by more than one of the orchestrator, the backend, the console, gg and the
-//! seeded packages, which is what puts it here rather than in the crate that happens
-//! to produce it.
+//! and the engine identity a run names, the test suite format, the ingest feed, the
+//! job API and publish-job API wire types, the reference lock, the match-play
+//! shapes, the live-preview frame, a review's writeup, the harness names and the
+//! layout of a run tree and a case version. Each is read or written by more than
+//! one of the driver, the backend, the console, gg and the seeded packages, which
+//! is what puts it here rather than in the crate that happens to produce it.
 //!
-//! This crate is data and the pure functions over it: no container, process, network
-//! or clock. `test_cabinet_core` depends on it and re-exports every module at the
-//! path it had before the split (`test_cabinet_core::gg`, `::metrics`, ...), so a
-//! caller names the same items either way. The TypeScript bindings and JSON Schemas
-//! are derived on these types behind the `contract` feature; see
-//! `docs/components/core/overview.md`.
+//! This crate is data and the pure functions over it: no container, process,
+//! network or clock. The TypeScript bindings and JSON Schemas are derived on these
+//! types behind the `contract` feature. See the documentation site's
+//! `components/contracts/overview` page.
 
+pub mod asset_reference;
 pub mod code_analysis;
 pub mod cold_storage;
 pub mod engine;
@@ -26,11 +26,17 @@ pub mod gg_query;
 pub mod gg_reference;
 pub mod gg_session_journal;
 pub mod gg_session_record;
+pub mod harness;
 pub mod ingest;
+pub mod job_api;
 pub mod layout;
+pub mod match_play;
 pub mod metrics;
 pub mod orchestrator;
+pub mod preview;
 pub mod pricing;
+pub mod publish_job_api;
+pub mod reference_lock;
 pub mod review;
 pub mod run_record;
 pub mod showcase;

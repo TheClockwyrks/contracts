@@ -54,6 +54,32 @@ sha2 = "0.10"
 hex = "0.4"
 percent-encoding = "2"
 
+# The OpenTelemetry crates the telemetry crate is built on. They move in
+# lockstep across the `opentelemetry` ecosystem and are pinned together, as the
+# monorepo pins them, so every service shares one mutually-compatible set;
+# bumping one means bumping all. Transport is OTLP over HTTP/protobuf through
+# `reqwest`'s blocking client, so no `protoc` is needed. `http` is named so the
+# propagation helpers speak `http::HeaderMap`.
+http = "1"
+opentelemetry = "0.32"
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = [
+	"http-proto",
+	"reqwest-blocking-client",
+	"trace",
+	"metrics",
+	"logs",
+] }
+opentelemetry-http = { version = "0.32", default-features = false }
+# `semconv_experimental` exposes the stabilized-but-feature-gated keys the
+# resource uses, notably `deployment.environment.name`.
+opentelemetry-semantic-conventions = { version = "0.32", features = [
+	"semconv_experimental",
+] }
+opentelemetry-appender-tracing = "0.32"
+tracing-opentelemetry = "0.33"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 # The SHA-256 digests the contracts and suites crates take (of a record, of a
 # suite's content) would otherwise run unoptimised in a test build. Optimising the hash changes no output, only how long the
 # digest takes, and matches the profile the monorepo builds these crates with.
