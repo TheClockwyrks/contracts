@@ -623,7 +623,7 @@ pub fn contract_modules(cfg: &Config) -> Vec<TsModule> {
             decls: ts_decls![cfg; code::CodeMetricUnit, code::CodeMetricDef],
         },
         // The test suite format: every entity a suite version folder declares, as the
-        // typed model `crates/core` reads and writes it. The Spec Cabinet's frontend
+        // typed model the suites crate reads and writes it. The Spec Cabinet's frontend
         // edits these shapes and the docs site documents them, so both read the same
         // declarations the two backends do.
         //

@@ -11,12 +11,10 @@ publish.workspace = true
 # record, the TCQ query contract, the code analysis contract, and the layout
 # constants of a run tree and a case version. Data structures, their pure methods
 # and well-formedness checks, and nothing that reaches a container, a process, the
-# network or a clock. `test-cabinet-core` depends
-# on this crate and re-exports every module at its old path, so
-# `test_cabinet_core::gg::GgRunLimits` and the rest keep naming the same items.
+# network or a clock.
 #
 # Keep it that way: a dependency added here is one every party that reads a run
-# record, a harness included, compiles. Runtime belongs in core.
+# record, a harness included, compiles. Runtime belongs in the repository that runs it.
 [lib]
 name = "test_cabinet_contracts"
 path = "src/lib.rs"

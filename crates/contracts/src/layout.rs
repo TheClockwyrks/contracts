@@ -45,7 +45,7 @@ pub const MAX_SHOWCASE_MEDIA_FILE_BYTES: u64 = 25 * 1024 * 1024;
 /// path (which deploys the build) and the local-serving path agree on what a
 /// build output is.
 ///
-/// Public also because the code analyzer (`test_cabinet_code_analysis`) removes
+/// Public also because the code analyzer (`test_cabinet_driver::analyzer`) removes
 /// exactly these names from the tree it measures, and the two must agree: a
 /// directory the validator will serve a build out of is, by definition, build output
 /// rather than code the model wrote. One list, read from every side, so adding a
@@ -155,7 +155,7 @@ pub const VALIDATION_BASELINE_DIR: &str = "validation-baseline";
 /// debug scripts live under (`validation/<item>.mjs`, plus any shared modules those
 /// scripts import — e.g. `validation/_helpers.mjs`). Reporter-side and **never**
 /// seeded into the model's run container; the whole directory is materialized into a
-/// backend-driven run's definition store (see `test_cabinet_core::materialize_version`) so a
+/// backend-driven run's definition store (see `test_cabinet_driver::materialize_version`) so a
 /// script's sibling imports resolve when the validator runs it.
 pub const VALIDATION_SCRIPT_DIR: &str = "validation";
 
@@ -198,7 +198,7 @@ pub fn validation_output_extension(kind: MediaKind) -> &'static str {
 /// media use, and what the live console/artifact service serve verbatim); but the
 /// snapshot builder transcodes it to H.264 `.mp4` so the public gallery plays on every
 /// browser (webm/VP8 does not on iOS/Safari) — exactly as a video proof is published
-/// (see `test_cabinet_core::proof_published_extension`). A still publishes as its captured PNG
+/// (see [`proof_published_extension`]). A still publishes as its captured PNG
 /// unchanged, and so does a recording: a `.json.gz` document is inflated by the
 /// browser and drawn by the console's own player, so there is no format the gallery
 /// would need it converted into and no reason to publish it any larger than it is

@@ -2,7 +2,7 @@
 //! output is translated into, and that a run records and streams.
 //!
 //! See `docs/events.md`. These are the shapes; the [`HarnessEvent`] a run streams
-//! is built by `test_cabinet_core::event`, which holds the per-harness parsers, the
+//! is built by `test_cabinet_driver::event`, which holds the per-harness parsers, the
 //! sinks and the system-event constructor, and re-exports everything here.
 
 use serde::{Deserialize, Serialize};
@@ -197,7 +197,7 @@ pub enum EventKind {
     /// a run. Emitted only by harnesses that report per-turn *deltas*; a harness
     /// that reports only a cumulative running total emits none (a cumulative
     /// snapshot is not a per-turn figure).
-    // The text is emitted into the contract; the link names core's item.
+    // The text is emitted into the contract; the link names the driver's item.
     #[allow(rustdoc::broken_intra_doc_links)]
     Usage {
         /// This turn's token counts, by normalized class.
@@ -227,7 +227,7 @@ pub enum EventKind {
     /// and so on) alongside these native events, so a console that does not yet
     /// understand gg's stream still shows live activity. See
     /// [`crate::gg_exec`] for the bridge.
-    // The text is emitted into the contract; the link names core's item.
+    // The text is emitted into the contract; the link names the driver's item.
     #[allow(rustdoc::broken_intra_doc_links)]
     Gg {
         /// The gg telemetry event, verbatim.
@@ -298,7 +298,7 @@ pub enum SystemStatus {
 
 impl SystemStage {
     /// A human readable description of this stage at the given status, used as
-    /// the default message for a system event (`test_cabinet_core::event::HarnessEventExt::system`).
+    /// the default message for a system event (`test_cabinet_driver::event::HarnessEventExt::system`).
     pub fn describe(self, status: SystemStatus) -> String {
         use SystemStage::*;
         use SystemStatus::*;

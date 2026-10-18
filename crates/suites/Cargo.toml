@@ -43,7 +43,7 @@ which = { workspace = true, optional = true }
 
 [features]
 # Exposes `test_browser`, what a test driving a real browser needs, to the tests of
-# a crate that depends on this one (`test-cabinet-core` turns it on as a
+# a crate that depends on this one (`test-cabinet-driver` turns it on as a
 # dev-dependency). Never enabled by a normal build.
 test-support = ["dep:which"]
 

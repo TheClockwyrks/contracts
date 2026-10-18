@@ -94,7 +94,7 @@
 //!
 //! The whole suite run is capped at [`vitest_timeout`] of wall clock and the output
 //! retained per suite at [`VITEST_OUTPUT_LIMIT`] bytes, exactly as the toolchain
-//! stage (`test_cabinet_core::toolchain_stage`) bounds its commands. The cap costs a
+//! stage (`test_cabinet_driver::toolchain_stage`) bounds its commands. The cap costs a
 //! suite that never terminates that much wall clock and nothing more: the command is
 //! spawned into its own process group and the whole group is killed, so no worker the
 //! suite started outlives the run that stopped waiting for it.
@@ -265,7 +265,7 @@ const TRUNCATION_MARKER: &str = " … output truncated … ";
 /// same suites are run twice against two different builds: over a run's collected
 /// tree, where the media travels with the published implementation, and over the
 /// case's own reference implementation, where it lands in the version folder's
-/// committed baseline (see `test_cabinet_core::validator::capture_baseline_media`).
+/// committed baseline (see `test_cabinet_driver::validator::capture_baseline_media`).
 ///
 /// Returns one [`DebugScriptResult`] per verdict unit the case declares a validator
 /// for, in declared order, or an empty vec when the case declares none. Each result
@@ -778,7 +778,7 @@ fn case_harness_source() -> Option<PathBuf> {
 /// Make sure the tree's dependencies are installed, installing only when nothing has.
 ///
 /// The tree reaching validation is normally installed already: the toolchain stage
-/// (`test_cabinet_core::toolchain_stage`) records the install it ran on the
+/// (`test_cabinet_driver::toolchain_stage`) records the install it ran on the
 /// [collection](ArtifactCollection::prepared_install) and the validator reuses that
 /// install before any stage that needs dependencies. Reinstalling would be minutes
 /// spent reproducing a state already on disk, so the command runs only for a tree

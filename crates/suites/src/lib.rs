@@ -59,5 +59,5 @@ mod test_engines;
 pub use error::{Error, Result};
 
 // The contract modules the moved code names by their `crate::` paths, as it did in
-// core, where they are re-exported at the same names.
+// the run engine, where they are re-exported at the same names.
 use test_cabinet_contracts::{toolchain, validation};

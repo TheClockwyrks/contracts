@@ -6,7 +6,7 @@
 //! See `docs/testing/end-to-end/overview.md`. A [`TestCaseVersion`] is what the
 //! catalog resolves a case's manifest into and what the definition store holds;
 //! the manifest formats and the catalog that reads them live in
-//! `test_cabinet_core::test_case`, which re-exports everything here.
+//! `test_cabinet_suites::test_case`, which re-exports everything here.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -60,7 +60,7 @@ fn default_true() -> bool {
 /// Only a version that predates the key can reach it: `scripts/ci/audio-packs-check.mjs`
 /// requires an explicit `packs` on every non-frozen full-stack version and on every
 /// jam, on the commit hook and in CI. Growing or reordering this list is therefore a
-/// deliberate edit, and `crates/core/src/test_case.audio.test.rs` asserts its exact
+/// deliberate edit, and `crates/suites/src/test_case.audio.test.rs` asserts its exact
 /// contents and order so it fails a gate.
 pub const DEFAULT_AUDIO_PACKS: [&str; 4] = [
     "combat-core@0.1.0",
@@ -93,7 +93,7 @@ pub const TCAB_PACKAGES_DIR: &str = "/opt/tcab-packages";
 
 /// The host **audio store** every published audio pack is baked into on the driver
 /// image, and which a run's declared packs are staged out of at container start (see
-/// `test_cabinet_core::audio_stage`). Overridden by `TCAB_AUDIO_STORE` for a local checkout,
+/// `test_cabinet_driver::audio_stage`). Overridden by `TCAB_AUDIO_STORE` for a local checkout,
 /// which fetches the same store with `scripts/fetch-audio-store.sh`. Unlike
 /// [`TCAB_PACKAGES_DIR`], nothing from it is vendored into the run repository: the
 /// clips are staged outside the workspace, and the workspace is the tree collected as
@@ -644,7 +644,7 @@ impl AssetKind {
     /// Whether this kind is one of the 3D voxel-family kinds (as opposed to a 2D
     /// sprite/paint kind): the two cube kinds, the six surface-meshed kinds, and the
     /// three **skinned** kinds. Every voxel-family kind declares a `[voxel]` bounding
-    /// volume instead of `[canvas]`, is seeded through `test_cabinet_core::seeding`'s voxel
+    /// volume instead of `[canvas]`, is seeded through `test_cabinet_driver::seeding`'s voxel
     /// path, and is validated by the voxel validator. Skinned kinds are voxel-family
     /// too — one whole-body field — but are **single-file** (see [`Self::is_per_part`]).
     pub fn is_voxel(self) -> bool {
@@ -2032,7 +2032,7 @@ pub struct ReviewItem {
     /// split evenly across them and the item earns the fraction that passed. When
     /// `graded` is true the item is a [game jam](TestType::GameJam) category worth
     /// `weight × 10` points, earning the graded tier's points times its weight (see
-    /// `test_cabinet_core::review::score`).
+    /// `test_cabinet_backend::review::score`).
     pub weight: u32,
     /// Whether this item is graded on the five-level scale
     /// ([`crate::review::VerdictStatus::GRADES`], 0/2/5/8/10 points) rather than
@@ -2057,7 +2057,7 @@ pub struct ReviewItem {
     /// item; set `false` only on the **effective per-variant** checklist (see
     /// [`TestCaseVersion::review_items_for`]) when an [`Erratum`] with
     /// [`Erratum::exclude_from_score`] links this item's verdict id — the item is still
-    /// checked, driven, and shown, but scoring (`test_cabinet_core::review::score_checklist`) skips
+    /// checked, driven, and shown, but scoring (`test_cabinet_backend::review::score_checklist`) skips
     /// it and its auto-validation no longer gates. Defaults to `true` so a declared or
     /// round-tripped item is scored unless explicitly excluded. When an item declares
     /// [`Self::sub_items`], exclusion of an individual point is recorded on that
@@ -2153,7 +2153,7 @@ pub fn merge_review_items(common: &[ReviewItem], variant: &[ReviewItem]) -> Vec<
 /// its points. An id of the composite `<item>.<sub>` form clears only that sub-item,
 /// leaving the rest of the category scored. Ids in `excluded` that match no point are
 /// ignored (an erratum may name a point a later checklist edit removed). A non-scoring
-/// point is still checked, driven, and shown; it is scoring (`test_cabinet_core::review::score_checklist`)
+/// point is still checked, driven, and shown; it is scoring (`test_cabinet_backend::review::score_checklist`)
 /// and the auto-validation verdicts (see [`crate::validation::DebugScriptResult`])
 /// that skip it. Mirrored by `applyScoreExclusions` in `packages/ui/src/ratings.ts`.
 pub fn apply_score_exclusions(items: &mut [ReviewItem], excluded: &HashSet<String>) {
@@ -2278,7 +2278,7 @@ pub struct SubReviewItem {
     pub description: Option<String>,
     /// How many points this sub-item is worth toward the run's score. Always
     /// greater than zero; defaults to `1`. A category's weight is the sum of its
-    /// items' weights (see `test_cabinet_core::review::score_checklist`).
+    /// items' weights (see `test_cabinet_backend::review::score_checklist`).
     #[serde(default = "one")]
     pub weight: u32,
     /// Optional reference view shown to the reviewer as the **expected** target
@@ -2311,7 +2311,7 @@ pub struct SubReviewItem {
     /// The [`FailureCap`] of this point on a
     /// [validator-rated](TestCaseVersion::validator_rated) version: the highest
     /// functional rating its [`Self::domains`] may reach while its validator fails
-    /// (see `test_cabinet_core::review::validator_domain_ratings`). Always `Some` on a
+    /// (see `test_cabinet_backend::review::validator_domain_ratings`). Always `Some` on a
     /// validator-rated version; `None` on a legacy version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_cap: Option<FailureCap>,
@@ -2380,7 +2380,7 @@ pub struct Erratum {
     /// point is still checked, driven, and shown, but no longer contributes to any
     /// run's score and (when auto-validated) no longer gates it. Always paired with a
     /// [`Self::review`] link naming the excluded point. See
-    /// [`TestCaseVersion::review_items_for`] and `test_cabinet_core::review::score_checklist`.
+    /// [`TestCaseVersion::review_items_for`] and `test_cabinet_backend::review::score_checklist`.
     /// Defaulted so a wire producer that predates the field deserializes as `false`.
     #[serde(default)]
     pub exclude_from_score: bool,
@@ -2420,7 +2420,7 @@ impl Eq for CheckAction {}
 /// an overlap.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EngineSupport {
-    /// The engine slug, one the catalogue (`test_cabinet_core::engine::EngineCatalog`) knows.
+    /// The engine slug, one the catalogue (`test_cabinet_suites::engine::EngineCatalog`) knows.
     pub slug: String,
     /// The lowest engine version a run may select, **inclusive**. `None` when the
     /// case declared the engine as a bare slug and pinned no floor.
@@ -2568,7 +2568,7 @@ pub struct TestCaseVersion {
     /// allowed before it is stopped. Normalized from the manifest's
     /// `max_runtime_hours` at resolution via [`crate::runtime_hours_to_seconds`].
     /// This is the per-case default; a run may override it (see
-    /// `test_cabinet_core::RunRequest::max_runtime_override`). Always positive, so a run is
+    /// `test_cabinet_driver::RunRequest::max_runtime_override`). Always positive, so a run is
     /// never unbounded.
     pub max_runtime_seconds: u64,
     /// The test type this case belongs to, the discriminator validation and the
@@ -2716,7 +2716,7 @@ pub struct TestCaseVersion {
     pub common_workspace: EngineWorkspaces,
     /// The command run inside the run container once the workspace and specs are
     /// seeded and before the harness starts (the manifest's `init`). `None` when
-    /// the case declares no init step. See `test_cabinet_core::RunEngine::execute`.
+    /// the case declares no init step. See `test_cabinet_driver::RunEngine::execute`.
     pub init: Option<String>,
     /// Paths to assets the model should use (seeded).
     pub asset_paths: Vec<PathBuf>,
@@ -2792,7 +2792,7 @@ pub struct TestCaseVersion {
 impl TestCaseVersion {
     /// Whether runs of this version are **validator-rated**: their functional
     /// rating and score are decided entirely by the validators (see
-    /// `test_cabinet_core::review::validator_domain_ratings`) and reviewers rate aesthetics
+    /// `test_cabinet_backend::review::validator_domain_ratings`) and reviewers rate aesthetics
     /// only. True iff the version is on the [engine format](Self::engine_format)
     /// and is not a [game jam](TestType::GameJam) (a jam is graded, never
     /// validated). Every version on the legacy spelling behaves exactly as it
@@ -2817,7 +2817,7 @@ impl TestCaseVersion {
     ///
     /// The gate a run's `--engine` is checked against, before any container is
     /// started (see
-    /// `test_cabinet_core::Error::EngineUnsupportedForCase`).
+    /// `test_cabinet_driver::Error::EngineUnsupportedForCase`).
     /// [`NONE_SLUG`] always passes, because resolution
     /// puts it in [`Self::engines`] whether the manifest declared it or not.
     ///
@@ -2993,7 +2993,7 @@ impl TestCaseVersion {
     /// Each id names a point (a review item id or a composite `<item>.<sub>`) that is
     /// still checked, driven, and shown for the version but no longer contributes to
     /// the score or gates the run (see [`Self::review_items_for`],
-    /// `test_cabinet_core::review::score_checklist`, and
+    /// `test_cabinet_backend::review::score_checklist`, and
     /// [`crate::validation::DebugScriptResult`]). Empty for a
     /// variant with no scoring-excluding errata — the common case.
     pub fn excluded_verdict_ids(&self, variant: &Variant) -> HashSet<String> {

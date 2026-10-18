@@ -2,11 +2,11 @@
 //!
 //! A case's checklist flattens into the verdict units its automated validation
 //! decides ([`drive_units`]), and the media a drive or a suite recorded is moved to its
-//! flat, addressable name ([`relocate_outputs`]). Both validation paths — core's
-//! browser drive (`test_cabinet_core::validator`) and the
+//! flat, addressable name ([`relocate_outputs`]). Both validation paths — the driver's
+//! browser drive (`test_cabinet_driver::validator`) and the
 //! [vitest runner](crate::vitest_validator) — read their work list from here, so one
-//! checklist flattens into the same units whichever path decides them. Core
-//! re-exports these at their old paths in `test_cabinet_core::validator`.
+//! checklist flattens into the same units whichever path decides them. The
+//! driver re-exports these in `test_cabinet_driver::validator`.
 
 use std::path::Path;
 
@@ -20,8 +20,8 @@ pub use test_cabinet_contracts::layout::{
     VALIDATION_MEDIA_DIR, VALIDATION_SCRIPT_DIR, validation_media_name, validation_output_extension,
 };
 
-/// One declared media output of a scripted drive (core's
-/// `test_cabinet_core::validator::ScriptedItemDrive`), with whether the drive
+/// One declared media output of a scripted drive (the driver's
+/// `test_cabinet_driver::validator::ScriptedItemDrive`), with whether the drive
 /// captured it into the media directory (at its [`validation_media_name`]).
 #[derive(Debug, Clone)]
 pub struct ScriptedOutput {

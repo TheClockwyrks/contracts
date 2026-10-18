@@ -6,7 +6,7 @@
 //!
 //! These are the shapes of a validation summary, which a run record carries. The
 //! validators that produce one, and the `Validator` trait they implement, live in
-//! `test_cabinet_core::validation`, which re-exports everything here.
+//! `test_cabinet_driver::validation`, which re-exports everything here.
 
 use std::path::PathBuf;
 
@@ -71,7 +71,7 @@ impl From<&ToolchainCommandResult> for StepResult {
     /// Report a toolchain command as a validation build step.
     ///
     /// Validation reports the case's install as a [`StepResult`],
-    /// and the toolchain stage (`test_cabinet_core::toolchain_stage`) runs that same install as a
+    /// and the toolchain stage (`test_cabinet_driver::toolchain_stage`) runs that same install as a
     /// toolchain command. This is how the one recorded outcome reaches the validation
     /// summary when the stage got there first, so the summary carries the step that
     /// actually ran rather than a second one describing it. The validator's own

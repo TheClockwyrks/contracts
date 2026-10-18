@@ -4,7 +4,7 @@
 //!
 //! A run record's validation summary carries the outcomes, so they are contract.
 //! The runner that executes a version's validator project and builds them lives in
-//! `test_cabinet_core::test_suite`.
+//! `test_cabinet_suites::test_suite`.
 
 use serde::{Deserialize, Serialize};
 

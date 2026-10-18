@@ -1,5 +1,5 @@
-//! The suite catalog: the `test-suites/` checkout, read the way core's
-//! `TestCaseCatalog` (`test_cabinet_core::test_case`) reads `test-cases/`.
+//! The suite catalog: the `test-suites/` checkout, read the way
+//! `TestCaseCatalog` (`test_cabinet_suites::test_case`) reads `test-cases/`.
 //!
 //! A checkout holds one folder per suite. A folder is a suite exactly when it holds
 //! a `suite.toml`, and a suite holds its exported versions at
@@ -501,8 +501,8 @@ impl TestSuiteCatalog {
 /// The authored catalog a suite definition's identity is checked against.
 ///
 /// A definition's catalog identity shares one space with the authored catalog's
-/// slugs, and the authored catalog (core's `TestCaseCatalog`, which implements this)
-/// is runtime this crate does not hold. It is asked one thing: whether an identity is
+/// slugs, and the authored catalog (`TestCaseCatalog`, which implements this) is
+/// another module's. It is asked one thing: whether an identity is
 /// already an authored test case's slug.
 pub trait AuthoredLookup {
     /// Whether `identity` names a test case the authored catalog holds.

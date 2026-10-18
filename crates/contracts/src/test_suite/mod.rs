@@ -7,7 +7,7 @@
 //! documentation site, and this module is the one place either application turns
 //! those files into values and those values back into files. The catalog, the
 //! lowering onto a runnable test case, previews and the validator runner live in
-//! `test_cabinet_core::test_suite`, which re-exports everything here. [`SuiteManifest`]
+//! `test_cabinet_suites::test_suite`, which re-exports everything here. [`SuiteManifest`]
 //! is the suite's identity at `<slug>/suite.toml`, and [`SuiteVersion`] covers a
 //! whole suite tree — an exported version or a draft — holding every entity it
 //! declares plus the paths of the trees that are not TOML.

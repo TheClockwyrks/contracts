@@ -1,7 +1,7 @@
 //! Emission machinery shared by the TypeScript and JSON Schema generators.
 //!
-//! The contract types live in `crates/contracts`, and the backend API's in
-//! `crates/core` and `crates/backend`; all of them derive both [`ts_rs::TS`] and
+//! The contract types live in `crates/contracts`, the backend API's among them
+//! (`backend_api`); all of them derive both [`ts_rs::TS`] and
 //! [`schemars::JsonSchema`] behind their crate's `contract` feature. This module turns
 //! those derives into the published artifacts: a TypeScript declaration per type
 //! ([`ts_decl`]) and a post-processed JSON Schema document per root type

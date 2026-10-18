@@ -1,6 +1,6 @@
 //! What a test needs to drive a real browser, and what it does when that is missing.
 //!
-//! Some of core's tests run a real toolchain rather than a stand-in for one: the
+//! Some of the driver's tests run a real toolchain rather than a stand-in for one: the
 //! lockfile check's script under the host's `node`, and a validator project under
 //! the npm workspace's Vitest and Playwright, in the Chromium that Playwright
 //! launches. A developer's machine can lack any of those. Such a test then says

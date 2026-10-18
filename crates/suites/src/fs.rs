@@ -1,4 +1,4 @@
-//! The filesystem helpers the suite runtime and core share: copying a tree the way a
+//! The filesystem helpers the suite runtime and the driver share: copying a tree the way a
 //! run's collected implementation is copied, and listing a catalog directory.
 
 use std::fs;

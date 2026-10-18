@@ -1,0 +1,101 @@
+{
+  "analyzerVersion": 1,
+  "authoredBasis": "allFiles",
+  "treeBasis": "preValidation",
+  "languages": ["typeScript"],
+  "size": {
+    "files": 1,
+    "parsedFiles": 1,
+    "sizeOnlyFiles": 0,
+    "bytes": 47,
+    "codeLines": 3,
+    "commentLines": 0,
+    "blankLines": 0,
+    "directories": 1,
+    "maxDirectoryDepth": 1,
+    "meanFilesPerDirectory": 1.0,
+    "giniCodeLines": 0.0,
+    "rootShare": 0.0,
+    "maxFileCodeLines": 3,
+    "medianFileCodeLines": 3,
+    "p90FileCodeLines": 3,
+    "filesOver500Lines": 0,
+    "filesOver1000Lines": 0
+  },
+  "complexity": {
+    "functions": 1,
+    "totalCyclomatic": 1,
+    "maxCyclomatic": 1,
+    "meanCyclomatic": 1.0,
+    "totalCognitive": 0,
+    "maxCognitive": 0,
+    "meanCognitive": 0.0,
+    "maxNesting": 0,
+    "meanMaxNesting": 0.0,
+    "maxParameters": 0,
+    "meanParameters": 0.0,
+    "maxExits": 1,
+    "meanExits": 1.0,
+    "functionsOver10Cyclomatic": 0,
+    "functionsOver20Cyclomatic": 0,
+    "maxFunctionLines": 3,
+    "meanFunctionLines": 3.0
+  },
+  "graph": {
+    "nodes": 1,
+    "edges": 0,
+    "cycles": 0,
+    "largestCycle": 0,
+    "filesInCycles": 0,
+    "meanInstability": 0.0,
+    "meanFanOut": 0.0,
+    "maxFanOut": 0,
+    "meanFanIn": 0.0,
+    "maxFanIn": 0,
+    "orphans": 1,
+    "maxDepth": 0,
+    "externalPackages": 0,
+    "entryPoints": 0
+  },
+  "api": {
+    "exports": 1,
+    "meanExportsPerModule": 1.0,
+    "unreferencedExports": 1,
+    "unreferencedExportRatio": 1.0
+  },
+  "typescript": {
+    "files": 1,
+    "codeLines": 3,
+    "anyOccurrences": 0,
+    "anyDensity": 0.0,
+    "unknownOccurrences": 0,
+    "suppressionComments": 0,
+    "nonNullAssertions": 0,
+    "assertionCasts": 0,
+    "annotatedParameterRatio": 0.0,
+    "annotatedReturnRatio": 1.0,
+    "exportedAnnotatedRatio": 1.0,
+    "typeDeclarations": 0,
+    "typeDeclarationsPerKloc": 0.0
+  },
+  "tests": {
+    "testFiles": 0,
+    "testFunctions": 0,
+    "testCodeLines": 0,
+    "testLineRatio": 0.0
+  },
+  "duplication": {
+    "clonedLines": 0,
+    "clonedLineRatio": 0.0,
+    "cloneGroups": 0,
+    "largestCloneLines": 0
+  },
+  "notes": {
+    "truncated": false,
+    "gitignoreApplied": false,
+    "filesSkipped": 0,
+    "bytesSkipped": 0,
+    "filesUnparsable": 0,
+    "filesRefused": 0
+  }
+}

@@ -15,7 +15,7 @@ use percent_encoding::percent_decode_str;
 ///
 /// A description may embed an image by bare relative path without listing it in
 /// the carousel, so such a name lives nowhere but the prose. Two components need
-/// it: the public snapshot (`test_cabinet_core::run_record`) publishes a description-only
+/// it: the public snapshot (`test_cabinet_driver::run_record`) publishes a description-only
 /// image so it is not permanently broken once the ephemeral store is wiped, and
 /// the suite validator (`test_suite::validate_with`) reports an authored
 /// reference with no file behind it against the showcase that wrote it.

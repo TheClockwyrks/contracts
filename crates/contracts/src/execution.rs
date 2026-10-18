@@ -16,7 +16,7 @@ pub const WORKSPACE_DIR: &str = "/work";
 /// The workspace-relative folder a game-jam run's *previous entries* are seeded
 /// into: the gameplay READMEs of earlier runs of the same jam with the same harness
 /// and model. It is reference material for building something distinct, not part of
-/// the submission, so seeding git-ignores it (see `test_cabinet_core::seeding`). Both the
+/// the submission, so seeding git-ignores it (see `test_cabinet_driver::seeding`). Both the
 /// seeder (which writes it) and the prompt (which points the model at it) name it
 /// through this constant so they never drift.
 pub const GAME_JAM_PRIOR_ENTRIES_DIR: &str = "previous-entries";

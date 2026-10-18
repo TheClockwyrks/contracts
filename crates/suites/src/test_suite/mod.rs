@@ -3,8 +3,8 @@
 //!
 //! The format, its typed model, the canonical TOML emitter and the export and
 //! save rules live in `test_cabinet_contracts::test_suite`, which this module
-//! re-exports whole; core re-exports this module whole in turn, so
-//! `test_cabinet_core::test_suite::SuiteVersion` and the rest name the same items
+//! re-exports whole; the driver re-exports this module whole in turn, so
+//! `test_cabinet_suites::test_suite::SuiteVersion` and the rest name the same items
 //! they always did. What is here is what reaches the filesystem, a process or a
 //! browser on a run's behalf: the catalog that reads a `test-suites/` checkout and
 //! lowers its definitions onto runnable test cases, previews, the definition prompt,

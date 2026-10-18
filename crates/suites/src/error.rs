@@ -1,9 +1,10 @@
 //! The suite runtime's error type.
 //!
-//! Each variant is one of `test_cabinet_core::Error`'s, with the same fields and the
-//! same message, and core converts one into the other variant for variant
-//! (`impl From<test_cabinet_suites::Error> for test_cabinet_core::Error`). A failure
-//! raised here therefore reads exactly as it did when this code was core's, whichever
+//! Each variant is one of `test_cabinet_driver::Error`'s, with the same fields and the
+//! same message, and the driver converts one into the other variant for variant
+//! (`impl From<test_cabinet_suites::Error> for test_cabinet_driver::Error`). A failure
+//! raised here therefore reads exactly as it did when this code was the run engine's,
+//! whichever
 //! crate's error a caller ends up holding.
 
 use std::io;
@@ -15,9 +16,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors the suite runtime raises.
 ///
-/// The message grammar is core's: a clause naming the stage that was running, with
-/// the detail from the layer below it behind a colon. Not `#[non_exhaustive]`: core
-/// matches it exhaustively, so a variant added here is mapped there before it builds.
+/// The message grammar is the driver's: a clause naming the stage that was running, with
+/// the detail from the layer below it behind a colon. Not `#[non_exhaustive]`: the
+/// driver matches it exhaustively, so a variant added here is mapped there before it builds.
 #[derive(Debug, Error)]
 pub enum Error {
     /// A requested test case slug was not present in the catalog.

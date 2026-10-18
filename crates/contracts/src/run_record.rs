@@ -73,7 +73,7 @@ impl HarnessSlug {
     /// is what the registry, the `harnesses/` directory guard, and the `tcab
     /// harnesses` listing all enumerate. [`Gg`](HarnessSlug::Gg) is **not** here on
     /// purpose — it is the first-party in-container executor, invoked directly and registered on its
-    /// own path (see `test_cabinet_core::harness_registry`); a wire slug that must resolve to
+    /// own path (see `test_cabinet_driver::harness_registry`); a wire slug that must resolve to
     /// *any* variant, gg included, goes through [`from_wire`](HarnessSlug::from_wire),
     /// and a surface that enumerates every harness a *run* can be queued for takes
     /// [`RUNNABLE`](HarnessSlug::RUNNABLE).

@@ -14,8 +14,8 @@
 //! version makes no claim about the engine, so publishing a new engine leaves
 //! every run already recorded against that case version intact.
 //!
-//! Like an orchestrator (`test_cabinet_core::orchestrator`), and unlike a harness
-//! (`test_cabinet_core::harness`), an engine carries **no in-tree Rust code**: it is a
+//! Like an orchestrator (`test_cabinet_driver::orchestrator`), and unlike a harness
+//! (`test_cabinet_driver::harness`), an engine carries **no in-tree Rust code**: it is a
 //! directory holding one `engine.toml`. The *runtime* the manifest names is an
 //! ordinary npm package, staged into the host package store and vendored into the
 //! run repository at seed time; this module is only the declarative half — the
@@ -67,7 +67,7 @@ pub struct EngineCatalog {
     /// The manifests this catalog knows, in catalogue order.
     manifests: EngineManifests,
     /// The host package store engine packages are staged into — the same
-    /// directory core's `FsRepoSeeder` (`test_cabinet_core::seeding`) vendors from, so
+    /// directory the driver's `FsRepoSeeder` (`test_cabinet_driver::seeding`) vendors from, so
     /// the version this reports is the version that run would be seeded with.
     package_store: PathBuf,
 }
@@ -77,7 +77,7 @@ impl EngineCatalog {
     ///
     /// The default store is [`package_store_dir`](crate::seeding::package_store_dir)
     /// (the `TCAB_PACKAGE_STORE` override when set, otherwise the baked-image
-    /// default), exactly as core's `FsRepoSeeder::new` reads; pair the two so the
+    /// default), exactly as the driver's `FsRepoSeeder::new` reads; pair the two so the
     /// version a case's range is checked against is the version the run is seeded
     /// with.
     pub fn from_manifests(manifests: EngineManifests, package_store: impl Into<PathBuf>) -> Self {
@@ -101,7 +101,7 @@ impl EngineCatalog {
     /// an engine this build does not carry — so it is an error naming the slugs
     /// that would have worked. A *known* slug whose manifest is malformed is not
     /// user input at all: it is an authoring mistake in the table, so it panics
-    /// with the reason, exactly as `test_cabinet_core::harness_registry`'s manifest
+    /// with the reason, exactly as `test_cabinet_driver::harness_registry`'s manifest
     /// load does. The `every_builtin_slug_resolves` guard in `test-cabinet-engines` is
     /// what turns that panic into a failing test rather than a failing run.
     pub fn resolve(&self, selection: &EngineSelection) -> Result<ResolvedEngine> {
