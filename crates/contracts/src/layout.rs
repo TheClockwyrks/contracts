@@ -4,10 +4,10 @@
 //! Each is read on more than one side: by the run that writes the tree, by the
 //! validator that reads it back, by the backend and the snapshot builder that serve
 //! and publish it, and by the content digest that decides whether it changed. One
-//! definition here keeps them agreeing. `test_cabinet_core` re-exports each at the
-//! name and module it was first defined under (the crate root for the showcase
-//! bounds, `playable` and `validator` for the build outputs, `validator` for the
-//! validation names, `reference_lock` for the lock file).
+//! definition here keeps them agreeing, along with the rules that find a run's
+//! static build and name a proof's served file.
+
+use std::path::{Path, PathBuf};
 
 use crate::test_case::MediaKind;
 
@@ -45,12 +45,81 @@ pub const MAX_SHOWCASE_MEDIA_FILE_BYTES: u64 = 25 * 1024 * 1024;
 /// path (which deploys the build) and the local-serving path agree on what a
 /// build output is.
 ///
-/// Public also because the code analyzer (`test_cabinet_code_analysis`) removes
+/// Public also because the code analyzer (`test_cabinet_driver::analyzer`) removes
 /// exactly these names from the tree it measures, and the two must agree: a
 /// directory the validator will serve a build out of is, by definition, build output
 /// rather than code the model wrote. One list, read from every side, so adding a
 /// fourth cannot silently start counting it.
 pub const BUILD_OUTPUTS: [&str; 3] = ["dist", "build", "out"];
+
+/// Find a deployable static build output beside a run's implementation, if one
+/// was produced. Returns the first of [`BUILD_OUTPUTS`] that exists as a
+/// directory, or `None` when the run produced no static build.
+pub fn find_build_output(impl_dir: &Path) -> Option<PathBuf> {
+    BUILD_OUTPUTS
+        .iter()
+        .map(|name| impl_dir.join(name))
+        .find(|candidate| candidate.is_dir())
+}
+
+/// Serving one file of a build under the per-run base path it is mounted at; see
+/// [`serve_build_file`].
+#[path = "layout.build.rs"]
+mod build;
+pub use build::{ServedBuildFile, serve_build_file};
+
+// --- proof naming ------------------------------------------------------------
+
+/// The name a proof's bytes are labelled from: its recorded `dest`, falling back to
+/// the requested name when the dest carries no usable extension.
+///
+/// A proof is *addressed* as `<proof-id>.<ext>`, and that name keeps only the last
+/// extension — `<proof-id>.gz` for a `dest` of `shots/rally.json.gz`, which cannot
+/// say whether the gzip frames a document or is one. The dest carries the whole
+/// compound suffix, so the labels come from it (see the suites crate's `content_labels`).
+pub fn proof_labelled_name<'a>(dest: &'a str, file: &'a str) -> &'a str {
+    let base = dest.rsplit('/').next().unwrap_or(dest);
+    match base.rfind('.') {
+        Some(dot) if dot > 0 && dot + 1 < base.len() => base,
+        _ => file,
+    }
+}
+
+/// The file extension a proof is served under, derived from its `dest` path: the
+/// lowercased extension of the dest's final path segment, defaulting to `png` when
+/// there is none usable (a leading- or trailing-dot segment, or no dot at all).
+///
+/// A proof is addressed everywhere as `<proof-id>.<ext>` — this computes the `<ext>`
+/// from the recorded `dest` so the served name lines up across the producers and
+/// consumers of that name: the driver's backend-store mirror, the backend snapshot
+/// builder, and the gallery's `extensionFor` (`packages/ui/.../proofMedia.ts`). The
+/// extension is cosmetic (the file is resolved by its proof-id stem), but it must
+/// agree on all sides or a snapshot key misses the URL the UI requests.
+pub fn proof_served_extension(dest: &str) -> String {
+    let base = dest.rsplit('/').next().unwrap_or(dest);
+    match base.rfind('.') {
+        Some(dot) if dot > 0 && dot + 1 < base.len() => base[dot + 1..].to_ascii_lowercase(),
+        _ => "png".to_string(),
+    }
+}
+
+/// The file extension a proof is served under **in the public snapshot** — as
+/// opposed to [`proof_served_extension`], which is how it is served live from the
+/// produced tree.
+///
+/// They differ for video only. A run captures its clip as the `.webm` Playwright
+/// records natively (the single format a case's `dest` names), which the live
+/// console serves verbatim; but the snapshot builder transcodes it to H.264
+/// `.mp4` so the public gallery plays on every browser (webm/VP8 does not on
+/// iOS/Safari). So a `Video` proof publishes as `mp4` regardless of its `dest`,
+/// while an `Image` or `Replay` proof publishes under its recorded extension
+/// unchanged — there is no second format either of those is converted into.
+pub fn proof_published_extension(kind: MediaKind, dest: &str) -> String {
+    match kind {
+        MediaKind::Video => "mp4".to_string(),
+        MediaKind::Image | MediaKind::Replay => proof_served_extension(dest),
+    }
+}
 
 // --- reference builds --------------------------------------------------------
 
@@ -63,7 +132,7 @@ pub const REFERENCE_LOCK_FILENAME: &str = "reference-builds.lock.json";
 
 /// The run-root-relative directory synthesized *actual* validation media is
 /// collected under, so it travels with the published implementation and is served
-/// by `test_cabinet_core::playable::serve_validation_file`.
+/// by `test_cabinet_artifacts::playable::serve_validation_file`.
 pub const VALIDATION_MEDIA_DIR: &str = ".vendor/validation";
 
 /// The directory a case version's **baseline** validation media lives under, one
@@ -86,7 +155,7 @@ pub const VALIDATION_BASELINE_DIR: &str = "validation-baseline";
 /// debug scripts live under (`validation/<item>.mjs`, plus any shared modules those
 /// scripts import — e.g. `validation/_helpers.mjs`). Reporter-side and **never**
 /// seeded into the model's run container; the whole directory is materialized into a
-/// backend-driven run's definition store (see `test_cabinet_core::materialize_version`) so a
+/// backend-driven run's definition store (see `test_cabinet_driver::materialize_version`) so a
 /// script's sibling imports resolve when the validator runs it.
 pub const VALIDATION_SCRIPT_DIR: &str = "validation";
 
@@ -129,7 +198,7 @@ pub fn validation_output_extension(kind: MediaKind) -> &'static str {
 /// media use, and what the live console/artifact service serve verbatim); but the
 /// snapshot builder transcodes it to H.264 `.mp4` so the public gallery plays on every
 /// browser (webm/VP8 does not on iOS/Safari) — exactly as a video proof is published
-/// (see `test_cabinet_core::proof_published_extension`). A still publishes as its captured PNG
+/// (see [`proof_published_extension`]). A still publishes as its captured PNG
 /// unchanged, and so does a recording: a `.json.gz` document is inflated by the
 /// browser and drawn by the console's own player, so there is no format the gallery
 /// would need it converted into and no reason to publish it any larger than it is
@@ -145,7 +214,7 @@ pub fn validation_published_extension(kind: MediaKind) -> &'static str {
 /// The flat, addressable file name a synthesized output is stored and served under:
 /// `<verdict>__<output>.<ext>`. Kept flat (one path segment) so it routes through the
 /// one-segment `/validation/{file}` endpoints unchanged, and shared with
-/// `test_cabinet_core::playable::serve_validation_file` and the gallery URL resolver.
+/// `test_cabinet_artifacts::playable::serve_validation_file` and the gallery URL resolver.
 ///
 /// `verdict_id` is the id of the verdict unit the output backs — a whole item's own id
 /// (`<item>`, for an item validated as a whole) or a sub-item's composite id
@@ -206,3 +275,7 @@ pub const VALIDATION_IMAGE_PREFIX: &str = "img.";
 pub fn is_validation_image_name(file: &str) -> bool {
     file.starts_with(VALIDATION_IMAGE_PREFIX) && (file.ends_with(".png") || file.ends_with(".bin"))
 }
+
+#[cfg(test)]
+#[path = "layout.test.rs"]
+mod tests;

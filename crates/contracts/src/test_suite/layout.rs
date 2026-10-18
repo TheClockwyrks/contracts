@@ -3,7 +3,7 @@
 //! tree belongs to.
 //!
 //! The catalog that lists and resolves them lives in
-//! `test_cabinet_core::test_suite`; the names are here because the export rules
+//! `test_cabinet_suites::test_suite`; the names are here because the export rules
 //! read a tree's place to decide which rules it is held to.
 
 use std::path::{Path, PathBuf};

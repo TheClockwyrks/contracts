@@ -4,7 +4,7 @@
 //! — the specifications it covers rather than a variant, a bounding volume and a
 //! time budget — so which context a template is rendered against is decided by
 //! where the resolved case came from. That decision lives here, beside the suite
-//! model, and core's `render_case_prompt` (`test_cabinet_core::prompt`) is the one
+//! model, and `render_case_prompt` (`crate::prompt`) is the one
 //! entry point a caller reaches for so nothing above it branches.
 //!
 //! The rendering itself is [`crate::prompt::render_suite_prompt`]: the same strict,

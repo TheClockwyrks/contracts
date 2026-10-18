@@ -1,6 +1,6 @@
 //! Shared headless-browser plumbing.
 //!
-//! Both reference rendering (see `test_cabinet_core::reference`) and the load-check
+//! Both reference rendering (see `test_cabinet_driver::reference`) and the load-check
 //! validator drive a headless browser through the bundled Playwright driver
 //! script (`packages/browser-driver/driver.mjs`) and, for captures, serve a
 //! built site over a tiny static file server. That shared machinery lives here.
@@ -27,7 +27,7 @@ use crate::test_case::CheckAction;
 /// [`capture`], [`drive_script`] and [`smoke_check`] call it inside their own span
 /// and hand a value it returns to the driver as `TRACEPARENT`, so a browser capture
 /// can be correlated back to its run. This crate links no OpenTelemetry: the caller
-/// that does passes its propagation function (`test_cabinet_core::browser` passes
+/// that does passes its propagation function (`test_cabinet_driver::browser` passes
 /// `test_cabinet_telemetry::propagation::current_traceparent`), and one that does
 /// not passes [`no_traceparent`].
 pub type Traceparent = fn() -> Option<String>;
@@ -330,7 +330,7 @@ pub struct SmokeDriveResult {
 /// Open a served build in the headless browser and report whether it boots.
 ///
 /// This is the single browser question the toolchain stage
-/// (`test_cabinet_core::toolchain_stage`) asks: the built site loads, reaches a first
+/// (`test_cabinet_driver::toolchain_stage`) asks: the built site loads, reaches a first
 /// animation frame, paints something, and logs nothing to the error console.
 ///
 /// Returns `Err` only when the driver itself could not run — no Node, no

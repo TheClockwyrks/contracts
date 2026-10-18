@@ -70,7 +70,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
 export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 
-readonly GENERATED="packages/run-record/src/index.ts packages/asset-contract/src/index.ts schema/core/run-record.schema.json schema/gg/session-record.schema.json"
+readonly GENERATED="packages/run-record/src/index.ts packages/asset-contract/src/index.ts packages/backend-api/src/index.ts schema/core/run-record.schema.json schema/gg/session-record.schema.json schema/snapshot/run.schema.json"
 fresh_repo() {
 	local repo file
 	repo="$(mktemp -d "$tmp/repoXXXXXX")"
@@ -117,7 +117,7 @@ repo="$(fresh_repo)"
 out="$(run "$repo" STUB_DRIFT="$repo/README.md")"
 check_equal "a change outside the generated artifacts passes" "0" "$?"
 
-for file in packages/run-record/src/new.ts packages/asset-contract/src/new.ts schema/new/new.schema.json; do
+for file in packages/run-record/src/new.ts packages/asset-contract/src/new.ts packages/backend-api/src/new.ts schema/new/new.schema.json; do
 	repo="$(fresh_repo)"
 	out="$(run "$repo" STUB_NEW="$repo/$file")"
 	check_equal "a newly emitted, uncommitted $file fails" "1" "$?"

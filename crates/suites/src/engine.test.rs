@@ -3,7 +3,7 @@
 //!
 //! Each runs over the fixture table (`crate::test_engines`), so it asserts what the
 //! catalog does with a manifest rather than what a built-in manifest says; the
-//! built-in manifests are held by core's `engine_catalog.test.rs`.
+//! built-in manifests are held by the engines crate's `lib.catalog.test.rs`.
 
 use super::*;
 use crate::test_engines::{fixture_catalog, fixture_catalog_in};

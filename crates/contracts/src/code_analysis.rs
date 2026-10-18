@@ -1,11 +1,14 @@
 //! The **code analysis** data contract: what a deterministic static read of a run's
 //! produced tree reports, and how each figure is labelled.
 //!
-//! The analysis itself lives in `crates/code-analysis`, which depends on this crate for
-//! these types. The dependency is deliberately one-way: the analyzer needs the contract,
-//! and core must never gain a parser — `oxc` and `syn` would otherwise be linked into
-//! every binary that links core, including those that never analyze a run. See
-//! `test_cabinet_core::post_run` for the seam the analyzer is injected through.
+//! The analysis itself lives in the driver (`test_cabinet_driver::analyzer`), which
+//! depends on this crate for these types. The dependency is deliberately one-way: the
+//! analyzer needs the contract, and the contract must never gain a parser — `oxc` and
+//! `syn` would otherwise be linked into every binary that reads a run record, including
+//! those that never analyze a run. See `test_cabinet_driver::post_run` for the seam the
+//! analyzer is injected through. `fixtures/code-analysis/summary.json` is the analyzer's
+//! summary of a two-file tree, for tests that need a real one; the driver's tests hold it
+//! to the analyzer's output.
 //!
 //! # Two tiers, on purpose
 //!
@@ -58,7 +61,7 @@ pub use catalog::CODE_METRICS;
 /// `implementation/` is a verbatim copy of what the model produced, so a host-written
 /// file there would read as code the model wrote — and, uniquely for this artifact, would
 /// then be *measured* by the next analysis of the same tree. The root is also what the
-/// run-tree artifact convention (`test_cabinet_core::post_run`) names: `<name>.json.gz`
+/// run-tree artifact convention (`test_cabinet_driver::post_run`) names: `<name>.json.gz`
 /// here, mirrored into the backend store as opaque bytes under [`CODE_ANALYSIS_ARTIFACT`]
 /// and served back content-negotiated.
 pub const CODE_ANALYSIS_TREE_ARTIFACT: &str = "code-analysis.json.gz";

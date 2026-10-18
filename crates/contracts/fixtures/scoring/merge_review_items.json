@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared scoring goldens: executed by crates/core/src/review.goldens.test.rs and packages/run-stats/src/scoring.goldens.test.ts, which both reject unknown keys. Expectations are the Rust core's output. merge_review_items / mergeReviewItems: input.common and input.variant are the two checklists; expect is the merged one. Items compare with defaults filled in (scored true, a point's weight 1, empty lists).",
+  "$comment": "Shared scoring goldens: executed by the backend's review.goldens.test.rs and packages/run-stats/src/scoring.goldens.test.ts, which both reject unknown keys. Expectations are the backend's output. merge_review_items / mergeReviewItems: input.common and input.variant are the two checklists; expect is the merged one. Items compare with defaults filled in (scored true, a point's weight 1, empty lists).",
   "cases": [
     {
       "name": "a fresh variant item is appended after the common ones",

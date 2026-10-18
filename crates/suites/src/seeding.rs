@@ -1,6 +1,6 @@
 //! What seeding and the engine catalog both read out of the host package store.
 //!
-//! The seeder that vendors a run's packages is core's (`test_cabinet_core::seeding`).
+//! The seeder that vendors a run's packages is the driver's (`test_cabinet_driver::seeding`).
 //! The two reads here are shared with the [engine catalog](crate::engine), which
 //! answers an engine's version from the same store the seeder vendors it out of, so
 //! the version a case's range is checked against is the version the run is seeded
@@ -15,7 +15,7 @@ use crate::error::{Error, Result};
 /// override when set, otherwise the baked-image default
 /// ([`TCAB_PACKAGES_DIR`](crate::test_case::TCAB_PACKAGES_DIR)).
 ///
-/// Shared with core's default engine catalog (`test_cabinet_core::engine::EngineCatalogExt::new`,
+/// Shared with the default built-in engine catalog (`test_cabinet_engines::built_in_catalog`,
 /// built with [`EngineCatalog::from_manifests`](crate::engine::EngineCatalog::from_manifests)),
 /// which reads an engine's version out of the same store, so a default-constructed
 /// catalog and a default-constructed seeder can never disagree about which store

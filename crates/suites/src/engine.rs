@@ -14,8 +14,8 @@
 //! version makes no claim about the engine, so publishing a new engine leaves
 //! every run already recorded against that case version intact.
 //!
-//! Like an orchestrator (`test_cabinet_core::orchestrator`), and unlike a harness
-//! (`test_cabinet_core::harness`), an engine carries **no in-tree Rust code**: it is a
+//! Like an orchestrator (`test_cabinet_driver::orchestrator`), and unlike a harness
+//! (`test_cabinet_driver::harness`), an engine carries **no in-tree Rust code**: it is a
 //! directory holding one `engine.toml`. The *runtime* the manifest names is an
 //! ordinary npm package, staged into the host package store and vendored into the
 //! run repository at seed time; this module is only the declarative half — the
@@ -37,9 +37,8 @@ use crate::error::{Error, Result};
 // The engine shapes a run record and a test case name (the slugs, the manifest, the
 // selection and the resolved engine) are contract, so they live in
 // `test-cabinet-contracts` and are re-exported here; the catalog that resolves them
-// against a manifest table and the host package store is runtime. Core re-exports
-// this module whole as `test_cabinet_core::engine`, beside the built-in catalog over
-// `test_cabinet_engines::BUILT_IN`.
+// against a manifest table and the host package store is runtime. The catalog over
+// the built-in table is the engines repository's `test_cabinet_engines::built_in_catalog`.
 pub use test_cabinet_contracts::engine::*;
 
 /// A table of engine manifests, as `(slug, engine.toml source)` in catalogue order.
@@ -61,14 +60,14 @@ pub type EngineManifests = &'static [(&'static str, &'static str)];
 /// lets the run gate compare a case's declared range against the version a run
 /// would actually be given, before any container work.
 ///
-/// `test_cabinet_core::engine::EngineCatalogExt` builds the catalog over the
-/// built-in table (`EngineCatalog::new`, `EngineCatalog::with_package_store`).
+/// The engines repository's `test-cabinet-engines` builds the catalog over the
+/// built-in table (`built_in_catalog`, `built_in_catalog_in`).
 #[derive(Debug, Clone)]
 pub struct EngineCatalog {
     /// The manifests this catalog knows, in catalogue order.
     manifests: EngineManifests,
     /// The host package store engine packages are staged into — the same
-    /// directory core's `FsRepoSeeder` (`test_cabinet_core::seeding`) vendors from, so
+    /// directory the driver's `FsRepoSeeder` (`test_cabinet_driver::seeding`) vendors from, so
     /// the version this reports is the version that run would be seeded with.
     package_store: PathBuf,
 }
@@ -78,7 +77,7 @@ impl EngineCatalog {
     ///
     /// The default store is [`package_store_dir`](crate::seeding::package_store_dir)
     /// (the `TCAB_PACKAGE_STORE` override when set, otherwise the baked-image
-    /// default), exactly as core's `FsRepoSeeder::new` reads; pair the two so the
+    /// default), exactly as the driver's `FsRepoSeeder::new` reads; pair the two so the
     /// version a case's range is checked against is the version the run is seeded
     /// with.
     pub fn from_manifests(manifests: EngineManifests, package_store: impl Into<PathBuf>) -> Self {
@@ -102,21 +101,26 @@ impl EngineCatalog {
     /// an engine this build does not carry — so it is an error naming the slugs
     /// that would have worked. A *known* slug whose manifest is malformed is not
     /// user input at all: it is an authoring mistake in the table, so it panics
-    /// with the reason, exactly as `test_cabinet_core::harness_registry`'s manifest
-    /// load does. The `every_engine_manifest_loads` guard in `crates/core/tests` is
+    /// with the reason, exactly as `test_cabinet_driver::harness_registry`'s manifest
+    /// load does. The `every_builtin_slug_resolves` guard in `test-cabinet-engines` is
     /// what turns that panic into a failing test rather than a failing run.
     pub fn resolve(&self, selection: &EngineSelection) -> Result<ResolvedEngine> {
         let slug = selection.slug.as_str();
         let manifest_toml = self.manifest_source(slug).ok_or_else(|| {
-            let known: Vec<&str> = self.manifests.iter().map(|(slug, _)| *slug).collect();
             Error::Engine(format!(
                 "unknown engine `{slug}` (built-in engines: {})",
-                known.join(", ")
+                self.slugs().join(", ")
             ))
         })?;
         let manifest = load_manifest(slug, manifest_toml);
         let version = staged_version(&self.package_store, &manifest);
         Ok(ResolvedEngine::new(manifest, version))
+    }
+
+    /// Every slug the table holds, in the table's order: the engines a selection or
+    /// a declaration may name.
+    pub fn slugs(&self) -> Vec<&'static str> {
+        self.manifests.iter().map(|(slug, _)| *slug).collect()
     }
 
     /// Every engine's manifest, in the table's order, for a CLI listing or a console

@@ -27,6 +27,9 @@ package-lock.json
 crates/contracts/fixtures/test-suite/
 # The record of the extraction from the monorepo, kept as filter-repo wrote it.
 /history/
+# gg's system-prompt templates are Handlebars whose bytes are the prompt a model
+# reads; Prettier's HTML-flavoured parser would reflow them.
+/**/*.hbs
 
 # --- Prose -----------------------------------------------------------------
 

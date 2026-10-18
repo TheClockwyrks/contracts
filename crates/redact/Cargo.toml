@@ -1,0 +1,23 @@
+[package]
+name = "test-cabinet-redact"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Secret scrubbing for text that leaves a run for a public destination: the
+# values of the environment variables the contracts crate names as the ones a
+# run's API key comes from, and any provider-shaped `sk-…` token. The publisher
+# runs a run's released source through it, and the backend its public snapshot.
+[lib]
+name = "test_cabinet_redact"
+path = "src/lib.rs"
+
+[dependencies]
+# The names of the variables whose values are scrubbed
+# (`harness::redacted_env_vars`).
+test-cabinet-contracts = { path = "../contracts" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

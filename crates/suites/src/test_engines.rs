@@ -1,11 +1,11 @@
 //! The engine table this crate's tests build their catalogs over.
 //!
-//! The crate names no built-in table (core builds the catalog over
-//! `test_cabinet_engines::BUILT_IN`), so a test here holds the catalog's logic to
+//! The crate names no built-in table (the engines repository's `test-cabinet-engines`
+//! binds the catalog to its `BUILT_IN`), so a test here holds the catalog's logic to
 //! fixture manifests under `src/testdata/engines/`: the built-in slugs, each in
 //! the shape its real manifest has (`none` with no runtime, the rest with a package
 //! and its docs), but not copies of their content. What the real manifests say is
-//! held by core's `engine_catalog.test.rs`.
+//! held by `test-cabinet-engines`' `lib.catalog.test.rs`.
 
 use std::path::Path;
 

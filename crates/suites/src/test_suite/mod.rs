@@ -3,17 +3,17 @@
 //!
 //! The format, its typed model, the canonical TOML emitter and the export and
 //! save rules live in `test_cabinet_contracts::test_suite`, which this module
-//! re-exports whole; core re-exports this module whole in turn, so
-//! `test_cabinet_core::test_suite::SuiteVersion` and the rest name the same items
+//! re-exports whole; the driver re-exports this module whole in turn, so
+//! `test_cabinet_suites::test_suite::SuiteVersion` and the rest name the same items
 //! they always did. What is here is what reaches the filesystem, a process or a
 //! browser on a run's behalf: the catalog that reads a `test-suites/` checkout and
 //! lowers its definitions onto runnable test cases, previews, the definition prompt,
 //! the validator runner. Each part that checks a declared engine slug takes the
 //! [engine catalog](crate::engine::EngineCatalog) it is checked against
 //! ([`TestSuiteCatalog::resolve_with`], [`preview_completeness_with`], and the
-//! contract's `*_with` export rules); the forms held to the built-in engines
-//! (`validate`, `load_and_validate`, `TestSuiteCatalog::resolve` and the rest) are
-//! `test_cabinet_core::test_suite`'s, because the built-in table is core's to name.
+//! contract's `*_with` export rules). This crate names no engine table: a caller
+//! holding a suite to the built-in engines passes the engines repository's
+//! `test_cabinet_engines::built_in_catalog()`.
 
 pub use test_cabinet_contracts::test_suite::*;
 

@@ -7,7 +7,7 @@
 //! beside the trees, in `<slug>/suite.toml`, so a read takes that manifest and a
 //! tree path and produces one [`SuiteVersion`] holding every entity the tree
 //! declares plus the paths of the trees that are not TOML. Where a tree sits, and
-//! so which `suite.toml` it belongs to, is the catalog's to say (`test_cabinet_core::test_suite::TestSuiteCatalog`). A save writes every
+//! so which `suite.toml` it belongs to, is the catalog's to say (`test_cabinet_suites::test_suite::TestSuiteCatalog`). A save writes every
 //! one of those entities back through the
 //! [canonical emitter](super::to_canonical_toml) and leaves everything else —
 //! the Markdown prose, the validator project, the workspaces, the reference

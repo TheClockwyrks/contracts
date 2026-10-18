@@ -1246,7 +1246,7 @@ pub trait GgSessionInterner {
 /// The **body-retaining** [interner](GgSessionInterner): the four pools of an assembled
 /// record, held in memory.
 ///
-/// What assembly (`test_cabinet_core::gg_session_assembly`) folds a journal into. gg's
+/// What assembly (`test_cabinet_driver::gg_session_assembly`) folds a journal into. gg's
 /// capture journal deliberately does **not** use it — see [`GgSessionInterner`] for why.
 #[derive(Debug, Default)]
 pub struct GgSessionPools {

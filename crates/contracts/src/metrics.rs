@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// apart matters for any consumer that aggregates across classes — a total that
 /// folds in an unknown class would be misleading, so such totals are themselves
 /// reported as unknown rather than silently treating the gap as zero.
-// The text is emitted into the contract; the link names core's item.
+// The text is emitted into the contract; the link names the driver's item.
 #[allow(rustdoc::broken_intra_doc_links)]
 #[cfg_attr(
     feature = "contract",
@@ -204,7 +204,7 @@ impl Cost {
 }
 
 /// The full metrics block recorded in a [`crate::run_record::RunRecord`].
-// The text is emitted into the contract; the link names core's item.
+// The text is emitted into the contract; the link names the driver's item.
 #[allow(rustdoc::broken_intra_doc_links)]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
@@ -254,7 +254,7 @@ pub struct RunMetrics {
     /// validation and before every [post-run stage](crate::post_run) runs. `None`
     /// on a canceled run, which skips validation, and on a record written before
     /// the stage durations were measured.
-    // The text is emitted into the contract; the link names core's item.
+    // The text is emitted into the contract; the link names the driver's item.
     #[allow(rustdoc::broken_intra_doc_links)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
@@ -269,7 +269,7 @@ pub struct RunMetrics {
 /// the stages sum to the run's measured duration exactly.
 ///
 /// Built once by the run engine and handed to
-/// `test_cabinet_core::RunEngine::collect_metrics`, which is the
+/// `test_cabinet_driver::RunEngine::collect_metrics`, which is the
 /// only thing that writes the duration fields of [`RunMetrics`].
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct RunDurations {

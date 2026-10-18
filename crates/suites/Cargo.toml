@@ -5,16 +5,16 @@ version.workspace = true
 license.workspace = true
 publish.workspace = true
 
-# The test-suite runtime: what reads a `test-suites/` checkout and turns an offered
-# definition into a run, on the filesystem, in a process or in a browser. The suite
-# catalog and its lowering onto a test case version, previews, the definition prompt,
-# the validator runners (a suite's and a case's vitest project), the static server and
-# browser driver they use, the engine catalog (over a manifest table its caller
-# supplies), and the content digests and labels an ingest keys a version by. The
-# shapes it reads and writes are `test-cabinet-contracts`'; the run that executes the
-# result is `test-cabinet-core`'s, which depends on this crate and re-exports every
-# module at its old path, so `test_cabinet_core::test_suite::TestSuiteCatalog` and the
-# rest keep naming the same items.
+# The test-suite runtime and the manifest loaders: what reads a `test-cases/` or
+# `test-suites/` checkout and turns an authored case or an offered definition into a
+# run, on the filesystem, in a process or in a browser. The `test_case`,
+# `test_case_group` and `test_suite` loaders with their catalogs and the color
+# parsers a case needs, the resolver over both catalogs, the suite lowering and
+# previews, `prompt` rendering, the validator runners (a suite's and a case's vitest
+# project), the static server and browser driver they use, the engine catalog (over a
+# manifest table its caller supplies; it names none) and the content digests and
+# labels an ingest keys a version by. The shapes it reads and writes are
+# `test-cabinet-contracts`'.
 [lib]
 name = "test_cabinet_suites"
 path = "src/lib.rs"
@@ -43,7 +43,7 @@ which = { workspace = true, optional = true }
 
 [features]
 # Exposes `test_browser`, what a test driving a real browser needs, to the tests of
-# a crate that depends on this one (`test-cabinet-core` turns it on as a
+# a crate that depends on this one (`test-cabinet-driver` turns it on as a
 # dev-dependency). Never enabled by a normal build.
 test-support = ["dep:which"]
 

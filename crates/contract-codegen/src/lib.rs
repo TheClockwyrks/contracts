@@ -7,8 +7,8 @@
 //! contract (`packages/run-record/src/`) and their JSON Schemas under
 //! [`SCHEMA_DIR`]. It compiles `test-cabinet-contracts` alone.
 //! `api-codegen` (`crates/api-codegen`) writes the backend's API package
-//! (`packages/backend-api/src/`) and its schemas under its own workspace root, and
-//! compiles the core and the backend to reach their types; it passes
+//! (`packages/backend-api/src/`) and its schemas from the contracts crate's
+//! backend API types; it passes
 //! [`contract_modules`] and [`contract_schema_docs`] to [`emit::finalize_ts`] and
 //! [`emit::finalize_schemas`] as *external* homes, so a backend type that refers to
 //! a contract type imports it from the run-record package and `$ref`s it at the
@@ -623,7 +623,7 @@ pub fn contract_modules(cfg: &Config) -> Vec<TsModule> {
             decls: ts_decls![cfg; code::CodeMetricUnit, code::CodeMetricDef],
         },
         // The test suite format: every entity a suite version folder declares, as the
-        // typed model `crates/core` reads and writes it. The Spec Cabinet's frontend
+        // typed model the suites crate reads and writes it. The Spec Cabinet's frontend
         // edits these shapes and the docs site documents them, so both read the same
         // declarations the two backends do.
         //

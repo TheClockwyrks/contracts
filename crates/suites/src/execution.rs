@@ -1,10 +1,10 @@
 //! The collected tree a validator is handed.
 //!
-//! A run's container, its seeding and its artifact collection are core's
-//! (`test_cabinet_core::execution`). What a validator reads of the collected tree —
+//! A run's container, its seeding and its artifact collection are the driver's
+//! (`test_cabinet_driver::execution`). What a validator reads of the collected tree —
 //! where it is, the install already run over it and the engine it was built on — is
-//! here, beside the validator runners that read it; core re-exports both types at
-//! their old paths.
+//! here, beside the validator runners that read it; the driver re-exports both types
+//! at its own paths.
 
 use std::path::PathBuf;
 
@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 use crate::validation::StepResult;
 
 // The run workspace's layout and the output-stream tag, re-exported so this module
-// reads as the one core's `execution` re-exports.
+// reads as the one the driver's `execution` re-exports.
 pub use test_cabinet_contracts::execution::*;
 
 /// The case's dependency install, already run to its final outcome over a
 /// collected tree.
 ///
-/// The toolchain stage (`test_cabinet_core::toolchain_stage`) runs the case's `[build]` install
+/// The toolchain stage (`test_cabinet_driver::toolchain_stage`) runs the case's `[build]` install
 /// over the collected tree so its commands have their dependencies, and validation
 /// then needs that same tree installed. A lockfile install such as `npm ci` clears
 /// `node_modules` and rebuilds it from the lockfile, so running the command a second
@@ -28,7 +28,7 @@ pub use test_cabinet_contracts::execution::*;
 /// recorded step in its place.
 ///
 /// An install that did not succeed is carried too. The verified
-/// install (`test_cabinet_core::install`) has already made every attempt it is allowed, so its
+/// install (`test_cabinet_driver::install`) has already made every attempt it is allowed, so its
 /// failure is final: validation reports that step as its own and never builds the
 /// tree, rather than spending the attempts over again.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,7 +63,7 @@ impl PreparedInstall {
 pub struct ArtifactCollection {
     /// Host path to the collected working tree.
     pub repo_path: PathBuf,
-    /// The dependency install a post-run stage (`test_cabinet_core::post_run`) already ran over
+    /// The dependency install a post-run stage (`test_cabinet_driver::post_run`) already ran over
     /// this tree, when one did.
     ///
     /// Deliberately not serialized. This describes the tree as it stands in **this**
@@ -82,7 +82,7 @@ pub struct ArtifactCollection {
     /// its documentation is copied beside the specs, and the build writes its game
     /// against that runtime's API. The selection is a property of the tree itself,
     /// so it is carried on the tree's own description rather than passed to every
-    /// `Validator` (`test_cabinet_core::validation::Validator`) implementation, only one of which
+    /// `Validator` (`test_cabinet_driver::validation::Validator`) implementation, only one of which
     /// has any use for it.
     ///
     /// Deliberately not serialized, for the same reason

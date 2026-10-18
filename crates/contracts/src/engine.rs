@@ -6,8 +6,8 @@
 //! the manifest's shape, a run's selection, and the resolved engine. The catalog that
 //! resolves a selection against a table of manifests and the host package store,
 //! `EngineCatalog`, is runtime and lives in `test_cabinet_suites::engine`, which
-//! re-exports everything here and implements [`EngineLookup`] for it; core re-exports
-//! both as `test_cabinet_core::engine`, beside the catalog over the built-in table
+//! re-exports everything here and implements [`EngineLookup`] for it; the driver
+//! re-exports both as `test_cabinet_driver::engine`, beside the catalog over the built-in table
 //! (`test_cabinet_engines::BUILT_IN`).
 
 use semver::Version;
@@ -24,7 +24,7 @@ pub const NONE_SLUG: &str = "none";
 /// The slugs of every built-in engine, in catalogue order. Kept in step with
 /// the built-in manifest table (`test_cabinet_engines::BUILT_IN`, whose test holds
 /// it to this list), and the order
-/// `test_cabinet_core::engine::EngineCatalog::all` enumerates in.
+/// `test_cabinet_suites::engine::EngineCatalog::all` enumerates in.
 pub const BUILT_IN_SLUGS: &[&str] = &[
     NONE_SLUG,
     "simple-2d",
@@ -67,7 +67,7 @@ pub struct EngineManifest {
 /// Which engine a run selects.
 ///
 /// A slug and nothing else: the catalogue is closed, so unlike an
-/// `OrchestratorSelection` (`test_cabinet_core::orchestrator`) there is
+/// `OrchestratorSelection` (`test_cabinet_driver::orchestrator`) there is
 /// no external-directory arm to carry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EngineSelection {
@@ -124,7 +124,7 @@ impl ResolvedEngine {
     /// The version of this engine, or `None` when it has none to report.
     ///
     /// An engine's version is the `version` of its npm package in the host
-    /// package store — the *same* file seeding (`test_cabinet_core::seeding`) reads when it
+    /// package store — the *same* file seeding (`test_cabinet_driver::seeding`) reads when it
     /// vendors the package into the run repository and records the version on the
     /// run, so the number a case's range is checked against and the number the run
     /// records come from one source of truth. It deliberately does **not** live in
@@ -171,10 +171,10 @@ impl ResolvedEngine {
     }
 
     /// Whether seeding copies this engine's documentation into the run repository at
-    /// `ENGINE_DOCS_DIR` (`test_cabinet_core::execution`).
+    /// `ENGINE_DOCS_DIR` (`test_cabinet_driver::execution`).
     ///
     /// Both halves of
-    /// `vendor_engine`'s (`test_cabinet_core::seeding::FsRepoSeeder`) condition, in one place a
+    /// `vendor_engine`'s (`test_cabinet_driver::seeding::FsRepoSeeder`) condition, in one place a
     /// reader downstream of seeding can ask: the engine must vendor a runtime at all,
     /// and its manifest must name a docs directory inside that runtime's package.
     ///
@@ -195,7 +195,7 @@ impl ResolvedEngine {
 ///
 /// The well-formedness checks of a test case or a suite version ask this rather than
 /// resolving the engine themselves: resolution reads the host package store, which a
-/// shape check has no business touching. `test_cabinet_core::engine::EngineCatalog`
+/// shape check has no business touching. `test_cabinet_suites::engine::EngineCatalog`
 /// is the implementation every caller passes.
 pub trait EngineLookup {
     /// Whether `selection` names a known engine.

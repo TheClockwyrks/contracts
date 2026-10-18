@@ -1,9 +1,10 @@
-"""Fail when a committed, generated data-contract artifact is stale.
+"""Fail when a committed, generated contract artifact is stale.
 
-The TypeScript bindings in `packages/run-record/src/` and
-`packages/asset-contract/src/` and the JSON Schemas in `schema/` are generated
-from the Rust types in `crates/contracts` by `crates/contract-codegen`, and
-committed because their readers cannot run the generator.
+The TypeScript bindings in `packages/run-record/src/`,
+`packages/asset-contract/src/` and `packages/backend-api/src/` and the JSON
+Schemas in `schema/` are generated from the Rust types in `crates/contracts` by
+`crates/contract-codegen` and `crates/api-codegen`, and committed because their
+readers cannot run the generator.
 scripts/ci/contract-drift.sh regenerates them and fails on any difference, or on
 a generated file that was never committed. It needs cargo and Node, and the
 workspace installed for Prettier and tsc, so it runs on the rust track, whose

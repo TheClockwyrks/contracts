@@ -5,9 +5,9 @@
 //! The backend reads the body and writes the report and the feed with these types,
 //! and the client writes the body and reads the feed with them, so the two sides of
 //! the wire cannot drift. The HTTP client and the feed reader (`IngestFeed`, which
-//! reports a failed scan as core's error) are runtime and live in
-//! `test_cabinet_core::backend_client`, which re-exports everything here; the scan
-//! itself is the backend's, in `crates/backend/src/ingest.rs`.
+//! reports a failed scan as the client's error) are runtime and live in the
+//! backend client crate, `test_cabinet_backend_client`, which re-exports everything
+//! here; the scan itself is the backend's.
 
 use serde::{Deserialize, Serialize};
 

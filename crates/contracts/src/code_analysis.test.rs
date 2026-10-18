@@ -1,7 +1,7 @@
 //! Tests for the code-analysis contract.
 //!
 //! These guard the two properties the *types* are responsible for — the rest of the
-//! behaviour lives in `crates/code-analysis`, which produces them.
+//! behaviour lives in the driver's analyzer, which produces them.
 
 use super::*;
 use serde_json::Value;

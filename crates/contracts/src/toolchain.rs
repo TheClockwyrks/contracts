@@ -15,7 +15,7 @@
 //! *recorded* and leave the run's rating and score to validation and the reviewer.
 //! The gate is a predicate on this summary ([`ToolchainSummary::gates`]) and is
 //! applied where a run's overall rating and score are *aggregated*
-//! (`test_cabinet_core::review::gated_rating` / `gated_score`), never by
+//! (`test_cabinet_backend::review::gated_rating` / `gated_score`), never by
 //! rewriting a reviewer's stored verdicts. That separation is deliberate: a
 //! reviewer's own marks are what they wrote, and the gate is an automated verdict
 //! layered over the aggregate, so an implementation that later typechecks re-derives
@@ -69,7 +69,7 @@ const TRUNCATION_MARKER: &str = "\n… output truncated …\n";
 /// produced implementation's repository root.
 ///
 /// The path is a contract between the seeded `vitest.config.ts` and this crate: the
-/// config's `outputFile` names it and the toolchain stage (`test_cabinet_core::toolchain_stage`)
+/// config's `outputFile` names it and the toolchain stage (`test_cabinet_driver::toolchain_stage`)
 /// reads it back. It sits under `coverage/`, the one directory the seeded workspace
 /// both `.gitignore`s and `.prettierignore`s, so the report is invisible to git, to
 /// the static analyzer's walk, and to the `format` command's `prettier --check`.
@@ -141,7 +141,7 @@ pub const TOOLCHAIN_TEST_ENTRY_LIMIT: usize = 1000;
 pub const TOOLCHAIN_FAILURE_MESSAGE_LIMIT: usize = 1024;
 
 /// The commands a case's `[toolchain]` table declares, resolved onto
-/// `TestCaseVersion` (`test_cabinet_core::test_case`).
+/// `TestCaseVersion` (`test_cabinet_suites::test_case`).
 ///
 /// `typecheck` is required of any case that declares the table at all; the other
 /// three are optional and simply absent when not declared. Each runs from the

@@ -425,7 +425,7 @@ impl PartialSuiteTree {
     ///
     /// [`complete_with`](Self::complete_with), under the rules a preview is held to
     /// ([`validate_preview_tree_with`]) rather than an exported version's. The tree is
-    /// the one `test_cabinet_core::test_suite::preview_tree` restricted a draft to,
+    /// the one `test_cabinet_suites::test_suite::preview_tree` restricted a draft to,
     /// and `root` is that draft's folder.
     pub fn complete_preview_with(
         &self,
