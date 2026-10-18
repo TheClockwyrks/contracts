@@ -53,6 +53,16 @@ tracing = "0.1"
 sha2 = "0.10"
 hex = "0.4"
 percent-encoding = "2"
+# The backend client's transport. TLS through rustls so no system OpenSSL is
+# needed; `json` for the request and answer bodies.
+reqwest = { version = "0.12", default-features = false, features = [
+	"json",
+	"rustls-tls",
+] }
+async-trait = "0.1"
+# The backend client's tests run on it; nothing in this repository spawns a
+# runtime of its own.
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "sync"] }
 
 # The OpenTelemetry crates the telemetry crate is built on. They move in
 # lockstep across the `opentelemetry` ecosystem and are pinned together, as the

@@ -1,0 +1,35 @@
+[package]
+name = "test-cabinet-backend-client"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The one HTTP client of the backend's API, typed over the contract shapes. The
+# driver, the CLI, the arena and the publisher address the backend through it.
+# The driver's own extensions of it (materializing a resolved version onto disk
+# and the renderer of a case's rendered references) live in the driver.
+[lib]
+name = "test_cabinet_backend_client"
+path = "src/lib.rs"
+
+[dependencies]
+test-cabinet-contracts = { path = "../contracts" }
+# Propagation only: every request carries the current trace context. No exporter.
+test-cabinet-telemetry = { path = "../telemetry", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+http = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+# The tests answer the client from a one-shot local listener.
+tokio = { workspace = true }
+# The engine version range a resolved version carries is compared as a version.
+semver = { workspace = true }
+
+[lints]
+workspace = true

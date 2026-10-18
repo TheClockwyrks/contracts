@@ -360,7 +360,7 @@ pub struct AssetOut {
 
 /// One held-out scored case of a performance case: the store-relative keys of the
 /// `input` scenario fed to the engine and the `expected` oracle state its output
-/// is checked against. Mirrors core's wire `CaseBody`, so a resolved version
+/// is checked against. Mirrors the backend client's wire `CaseBody`, so a resolved version
 /// round-trips its scored set through to the runner's `materialize_version`.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
