@@ -3,7 +3,7 @@
 //! A showcase — the run's, a case variant's, or a suite's — is a description, a
 //! carousel, and the media files the two of them reference, in one directory with
 //! no subdirectories. The format itself is modelled where each showcase is
-//! declared (`ShowcaseManifest` in `test_cabinet_core` for the carousel, the
+//! declared (`ShowcaseManifest` in [`test_suite`](crate::test_suite) for the carousel, the
 //! caps in [`layout`](crate::layout)); what lives here is the reading the
 //! format implies but no model carries, because a description's references are in
 //! its prose rather than in a key.
@@ -17,7 +17,7 @@ use percent_encoding::percent_decode_str;
 /// the carousel, so such a name lives nowhere but the prose. Two components need
 /// it: the public snapshot (`test_cabinet_core::run_record`) publishes a description-only
 /// image so it is not permanently broken once the ephemeral store is wiped, and
-/// the suite validator (`test_cabinet_core::test_suite::validate`) reports an authored
+/// the suite validator (`test_suite::validate_with`) reports an authored
 /// reference with no file behind it against the showcase that wrote it.
 ///
 /// Only a name the store and serve routes would accept is returned: the same

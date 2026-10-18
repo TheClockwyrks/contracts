@@ -15,7 +15,7 @@ use crate::error::{Error, Result};
 /// override when set, otherwise the baked-image default
 /// ([`TCAB_PACKAGES_DIR`](crate::test_case::TCAB_PACKAGES_DIR)).
 ///
-/// Shared with core's default engine catalog (`test_cabinet_core::engine::EngineCatalogExt::new`,
+/// Shared with the default built-in engine catalog (`test_cabinet_engines::built_in_catalog`,
 /// built with [`EngineCatalog::from_manifests`](crate::engine::EngineCatalog::from_manifests)),
 /// which reads an engine's version out of the same store, so a default-constructed
 /// catalog and a default-constructed seeder can never disagree about which store

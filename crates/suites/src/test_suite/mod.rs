@@ -11,9 +11,9 @@
 //! the validator runner. Each part that checks a declared engine slug takes the
 //! [engine catalog](crate::engine::EngineCatalog) it is checked against
 //! ([`TestSuiteCatalog::resolve_with`], [`preview_completeness_with`], and the
-//! contract's `*_with` export rules); the forms held to the built-in engines
-//! (`validate`, `load_and_validate`, `TestSuiteCatalog::resolve` and the rest) are
-//! `test_cabinet_core::test_suite`'s, because the built-in table is core's to name.
+//! contract's `*_with` export rules). This crate names no engine table: a caller
+//! holding a suite to the built-in engines passes the engines repository's
+//! `test_cabinet_engines::built_in_catalog()`.
 
 pub use test_cabinet_contracts::test_suite::*;
 

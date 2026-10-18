@@ -72,11 +72,11 @@
 //!   A draft breaking them still loads and saves; they are what stands between it
 //!   and an export. [`validate_with`] applies them to a complete model.
 //!   A preview is held to the same rules less the one no preview can satisfy,
-//!   [`validate_preview_tree_with`], and `test_cabinet_core::test_suite::preview_completeness`
-//!   decides which of a draft's definitions a preview can hold. Each takes the
-//!   [engines](crate::engine::EngineLookup) a declared slug is checked against;
-//!   core's `validate`, `validate_tree` and `validate_preview_tree` pass the
-//!   built-in catalog.
+//!   [`validate_preview_tree_with`], and the suites crate's
+//!   `preview_completeness_with` decides which of a draft's definitions a preview
+//!   can hold. Each takes the [engines](crate::engine::EngineLookup) a declared slug
+//!   is checked against; a caller holding a suite to the built-in engines passes
+//!   the engines repository's `built_in_catalog`.
 //! - The save rules, [`save_problems`], decide whether a change can be written at
 //!   all: an identifier that is not kebab-case or that repeats within its file, and a
 //!   path that resolves outside the suite tree.
@@ -180,7 +180,7 @@ pub enum TestSuiteError {
 pub type TestSuiteResult<T> = std::result::Result<T, TestSuiteError>;
 
 /// The engines the format tests hold a suite's declared engine slugs to: the
-/// built-in slugs, which is what core's engine catalog knows.
+/// built-in slugs, which is what the built-in engine catalog knows.
 #[cfg(test)]
 pub(crate) struct BuiltInEngines;
 

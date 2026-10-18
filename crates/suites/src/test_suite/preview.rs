@@ -20,8 +20,7 @@
 //!
 //! - which definitions are complete, and what holds back each one that is not
 //!   ([`preview_completeness_with`], against the engines a definition's declared
-//!   slugs are checked against; `test_cabinet_core::test_suite::preview_completeness`
-//!   is its form over the built-in engines);
+//!   slugs are checked against);
 //! - the tree a preview of some definitions is, restricted to those definitions and
 //!   what they reference ([`preview_tree`]), which converts to the complete model
 //!   through [`PartialSuiteTree::complete_preview_with`];
