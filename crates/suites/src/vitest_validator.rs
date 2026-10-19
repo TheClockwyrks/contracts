@@ -247,9 +247,15 @@ const CASE_HARNESS_PACKAGE: &str = "@clockwyrks/case-harness";
 /// Where the shared harness package's `src/` is looked for when the host package
 /// store does not carry it, relative to the current directory. Mirrors
 /// [`crate::browser::driver_path`]'s candidates, and for the same reason: runs are
-/// launched from the repository root, where the npm workspace lives.
-const CASE_HARNESS_CANDIDATES: [&str; 2] =
-    ["packages/case-harness/src", "../packages/case-harness/src"];
+/// launched from the repository root, where the npm workspace lives. The package is
+/// the engines repository's, so it is at `packages/` of that checkout and at
+/// `engines/packages/` of the superrepo, which checks it out as a submodule.
+const CASE_HARNESS_CANDIDATES: [&str; 4] = [
+    "packages/case-harness/src",
+    "../packages/case-harness/src",
+    "engines/packages/case-harness/src",
+    "../engines/packages/case-harness/src",
+];
 
 /// How often a running suite is checked for completion while the cap runs down.
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
