@@ -11,6 +11,7 @@ import type {
   RunRecord,
   TokenPrices,
 } from "@clockwyrks/run-record";
+import type { HarnessEvent } from "@clockwyrks/run-record/event";
 import type {
   GgCapabilitySet,
   GgProviderCandidate,
@@ -255,6 +256,27 @@ export type LeaseRenewal = {
    * The ids of the jobs whose leases to renew.
    */
   jobIds: Array<string>;
+};
+
+/**
+ * The body of `POST /jobs/{id}/events`: a batch of a job's normalized events,
+ * numbered by the sequence of its first one.
+ *
+ * The driver numbers a job's events from `0`, one per event, and `events`
+ * follows `sequence` contiguously, so the event at index `i` has sequence
+ * `sequence + i`. The backend stores each event keyed by job and sequence,
+ * skipping one already stored, so a resent batch is idempotent. See the
+ * driver's events page, "Delivery to the backend".
+ */
+export type EventBatch = {
+  /**
+   * The sequence of the first event in `events`.
+   */
+  sequence: number;
+  /**
+   * Normalized events, in the order the harness emitted them.
+   */
+  events: Array<HarnessEvent>;
 };
 
 /**

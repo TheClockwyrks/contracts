@@ -12,6 +12,8 @@
 //! - [`ClaimedJob`] — what the dispatcher receives from `POST /jobs/next`.
 //! - [`LeaseRenewal`] — the body of `POST /jobs/leases`, the dispatcher's
 //!   renewal of the claim leases of the jobs whose driver `Job`s are alive.
+//! - [`EventBatch`] — the body of `POST /jobs/{id}/events`, one sequenced batch
+//!   of the normalized events the driver relays to the backend.
 //! - [`StatusUpdate`] / [`DriverState`] — the body of `POST /jobs/{id}/status`,
 //!   how the driver advances a job and hands back the record it produced.
 //! - [`LaunchAck`] / [`JobState`] / [`ActiveJobOut`] / [`JobStatusOut`] /
@@ -28,6 +30,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::event::HarnessEvent;
 use crate::gg::GgCapabilitySet;
 use crate::metrics::TokenPrices;
 use crate::run_record::{HarnessSlug, RunRecord};
@@ -192,6 +195,24 @@ pub struct ClaimedJob {
 pub struct LeaseRenewal {
     /// The ids of the jobs whose leases to renew.
     pub job_ids: Vec<String>,
+}
+
+/// The body of `POST /jobs/{id}/events`: a batch of a job's normalized events,
+/// numbered by the sequence of its first one.
+///
+/// The driver numbers a job's events from `0`, one per event, and `events`
+/// follows `sequence` contiguously, so the event at index `i` has sequence
+/// `sequence + i`. The backend stores each event keyed by job and sequence,
+/// skipping one already stored, so a resent batch is idempotent. See the
+/// driver's events page, "Delivery to the backend".
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct EventBatch {
+    /// The sequence of the first event in `events`.
+    pub sequence: u64,
+    /// Normalized events, in the order the harness emitted them.
+    pub events: Vec<HarnessEvent>,
 }
 
 /// The state a driver reports for a job via `POST /jobs/{id}/status`.

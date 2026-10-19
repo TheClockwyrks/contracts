@@ -242,3 +242,26 @@ fn a_lease_renewal_names_its_jobs_as_job_ids() {
         serde_json::json!({ "jobIds": ["a", "b"] })
     );
 }
+
+#[test]
+fn an_event_batch_carries_its_first_sequence_beside_its_events() {
+    let json = serde_json::json!({
+        "sequence": 7,
+        "events": [
+            { "timestamp": "2026-10-19T12:00:00Z", "type": "agent", "message": "hi" },
+            {
+                "timestamp": "2026-10-19T12:00:01Z",
+                "sessionId": "s1",
+                "type": "agent",
+                "message": "there"
+            }
+        ]
+    });
+    let batch: EventBatch = serde_json::from_value(json.clone()).unwrap();
+    assert_eq!(batch.sequence, 7);
+    assert_eq!(batch.events.len(), 2);
+    assert_eq!(batch.events[1].session_id.as_deref(), Some("s1"));
+    assert_eq!(serde_json::to_value(&batch).unwrap(), json);
+    let back: EventBatch = serde_json::from_value(serde_json::to_value(&batch).unwrap()).unwrap();
+    assert_eq!(back, batch);
+}
