@@ -1101,7 +1101,8 @@ struct VersionBody {
     /// [`BackendClient::resolve_version`] and resolves the run image off the
     /// [`TestCaseVersion`] that comes back. A field missing here would silently
     /// resolve the 2D image for a 3D case — a failure that only shows up inside the
-    /// container as `voxel: not found`, and never at all in a local `tcab run`.
+    /// container as `voxel: not found`, and never on a path that resolves the version
+    /// off its on-disk manifest.
     #[serde(default)]
     asset_dimension: AssetDimension,
     /// The sprite-sheet grid and sequences. Deserialized straight into

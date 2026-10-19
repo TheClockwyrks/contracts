@@ -150,9 +150,9 @@ impl EngineLookup for EngineCatalog {
 /// number a run would not receive.
 ///
 /// Every failure collapses to `None` rather than to an error, because a catalogue
-/// lookup is not a run: `tcab engines`, a case resolving its declared slugs, and a
-/// `tcab validate` on a host that has staged nothing all resolve engines without
-/// ever seeding one. The two places a missing version actually matters both refuse
+/// lookup is not a run: a case resolving its declared slugs and a `tcab validate`
+/// on a host that has staged nothing both resolve engines without ever seeding
+/// one. The two places a missing version actually matters both refuse
 /// loudly on their own — the seeder with the restaging instructions, and
 /// `resolve_engine` with the range it could not check — so swallowing it here
 /// costs no diagnosis.

@@ -254,8 +254,8 @@ async fn resolve_version_carries_the_full_stack_asset_dimension_across_the_wire(
     // version through `resolve_version` and core resolves the run image off what comes
     // back. So `assetDimension` has to survive the wire, or a 3D full-stack case
     // silently resolves the 2D image and the run dies inside the container on the first
-    // `voxel` invocation — a failure a local `tcab run` (which resolves off the on-disk
-    // manifest) would never reproduce.
+    // `voxel` invocation — a failure that resolving the version off its on-disk
+    // manifest would never reproduce.
     let body = serde_json::json!({
         "slug": "gantry",
         "version": "v1.0.0",
