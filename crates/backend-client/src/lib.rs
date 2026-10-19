@@ -594,7 +594,7 @@ impl HttpBackendClient {
             base_url: base.trim_end_matches('/').to_string(),
             token: None,
             access: Vec::new(),
-            http: reqwest::Client::new(),
+            http: http_client(),
         }
     }
 
@@ -1164,9 +1164,13 @@ impl BackendClient for HttpBackendClient {
     async fn launch_run(&self, body: &LaunchBody, token: &str) -> Result<String> {
         let url = self.url("/jobs");
         // The credential handed to this call rides along as `Authorization:
-        // Bearer`, replacing the client's own configured token.
+        // Bearer`, replacing the client's own configured token. An empty one sends
+        // the client's own, for a caller whose identity reaches the backend as an
+        // Access credential instead.
         let mut headers = self.headers();
-        if let Ok(mut value) = http::HeaderValue::from_str(&format!("Bearer {token}")) {
+        if !token.is_empty()
+            && let Ok(mut value) = http::HeaderValue::from_str(&format!("Bearer {token}"))
+        {
             value.set_sensitive(true);
             headers.insert(http::header::AUTHORIZATION, value);
         }
@@ -1439,9 +1443,14 @@ impl HttpBackendClient {
             .send()
             .await
             .map_err(|err| ingest_err(&url, &err))?;
+        // The refusal is the ingest's, so it is reported as one rather than under
+        // the generic request error's wording.
         let mut response = error_for_status(&url, response)
             .await
-            .map_err(|err| Error::Ingest(err.to_string()))?;
+            .map_err(|err| match err {
+                Error::Publish(message) => Error::Ingest(message),
+                other => other,
+            })?;
 
         // NDJSON: accumulate bytes and emit one item per `\n`-terminated line,
         // mirroring the job and publish watches.
@@ -2589,21 +2598,61 @@ fn backend_err(url: &str, err: reqwest::Error) -> Error {
     Error::Publish(format!("backend request to `{url}` failed: {err}"))
 }
 
+/// The shared HTTP client. It follows no redirect: the backend's API answers
+/// none, so a redirect is an environment's edge sending a request that carried no
+/// credential it accepts to its sign-in page, which [`error_for_status`] reports
+/// as the refusal it is rather than reading the sign-in page as an answer.
+fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("the HTTP client builds with the default TLS configuration")
+}
+
 /// Turn a non-2xx response into an [`Error`], surfacing the backend's error
 /// envelope (`{ "error": { "code", "message" } }`) when present.
+///
+/// An answer that is not the backend's own is the edge's: a redirect to its
+/// sign-in page, or a `401`/`403` page of its own. Either is reported as the
+/// edge's refusal, naming the redirect's target and never the page's markup.
 async fn error_for_status(url: &str, response: reqwest::Response) -> Result<reqwest::Response> {
     let status = response.status();
     if status.is_success() {
         return Ok(response);
     }
+    if status.is_redirection() {
+        let location = response
+            .headers()
+            .get(http::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .map(sign_in_target)
+            .unwrap_or_else(|| "an unnamed location".to_string());
+        return Err(Error::Publish(format!(
+            "backend request to `{url}` was refused by the edge ({status}, redirected to \
+             {location}): the request carried no Access credential the edge accepts"
+        )));
+    }
     let body = response.text().await.unwrap_or_default();
-    let message = serde_json::from_str::<ErrorEnvelope>(&body)
-        .ok()
-        .map(|envelope| envelope.error.message)
-        .unwrap_or_else(|| body.trim().to_string());
+    let message = match serde_json::from_str::<ErrorEnvelope>(&body) {
+        Ok(envelope) => envelope.error.message,
+        Err(_) if matches!(status.as_u16(), 401 | 403) => {
+            return Err(Error::Publish(format!(
+                "backend request to `{url}` was refused by the edge ({status}): the request \
+                 carried no Access credential the edge accepts, or one its policy does not admit"
+            )));
+        }
+        Err(_) => body.trim().to_string(),
+    };
     Err(Error::Publish(format!(
         "backend request to `{url}` failed ({status}): {message}"
     )))
+}
+
+/// A redirect's target without its query, which on the edge's sign-in page
+/// carries the request's own URL and state rather than anything worth printing.
+fn sign_in_target(location: &str) -> String {
+    let target = location.split(['?', '#']).next().unwrap_or(location);
+    format!("`{target}`")
 }
 
 #[derive(Deserialize)]
@@ -2619,3 +2668,7 @@ struct ErrorEnvelopeInner {
 #[cfg(test)]
 #[path = "lib.test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "lib.edge.test.rs"]
+mod edge_tests;
