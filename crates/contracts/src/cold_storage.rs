@@ -1,26 +1,29 @@
-//! The cold-storage checkout: large generated media kept out of the main tree.
+//! The cold-storage checkout: large generated media kept out of the catalog.
 //!
-//! A checkout carries its captured baseline validation media in the `cold-storage`
-//! submodule at its root rather than beside each test case. The submodule's tree
-//! mirrors the checkout's, so a case version at
+//! The catalog's captured baseline validation media lives in the `cold-storage`
+//! repository, checked out beside the `test-suites` checkout that holds the catalog
+//! (both are submodules of the superrepo), rather than beside each test case. Its
+//! tree mirrors the catalog checkout's, so a case version at
 //! `test-cases/<type>/<difficulty>/<slug>/<version>/` keeps its baselines at
 //! `cold-storage/test-cases/<type>/<difficulty>/<slug>/<version>/validation-baseline/`.
 //!
 //! [`ColdStorage::validation_baseline_dir`] is the one place that path is worked
 //! out. `tcab capture-baselines` and `tcab publish-reference` write through it, and
-//! backend ingest reads through it. The root defaults to `<checkout>/cold-storage`,
-//! and [`COLD_STORAGE_DIR_ENV`] points it anywhere else.
+//! backend ingest reads through it. The root defaults to the `cold-storage`
+//! directory beside the checkout, and [`COLD_STORAGE_DIR_ENV`] points it anywhere
+//! else.
 
 use std::path::{Component, Path, PathBuf};
 
 use crate::layout::VALIDATION_BASELINE_DIR;
 
-/// The checkout-relative directory the cold-storage submodule is checked out at.
+/// The directory the cold-storage repository is checked out at, beside the catalog
+/// checkout.
 pub const COLD_STORAGE_DIR: &str = "cold-storage";
 
 /// The environment variable that overrides the cold-storage root. When set and
-/// non-empty it replaces `<checkout>/cold-storage`; a relative value resolves
-/// against the working directory.
+/// non-empty it replaces the `cold-storage` beside the checkout; a relative value
+/// resolves against the working directory.
 pub const COLD_STORAGE_DIR_ENV: &str = "TCAB_COLD_STORAGE_DIR";
 
 /// A checkout's cold-storage root, and the resolver from a case version to its
@@ -32,14 +35,14 @@ pub struct ColdStorage {
 }
 
 impl ColdStorage {
-    /// The cold storage of the checkout at `checkout`: [`COLD_STORAGE_DIR_ENV`] when
-    /// set, otherwise `<checkout>/cold-storage`.
+    /// The cold storage of the catalog checkout at `checkout`: [`COLD_STORAGE_DIR_ENV`]
+    /// when set, otherwise the `cold-storage` directory beside the checkout.
     pub fn for_checkout(checkout: impl Into<PathBuf>) -> Self {
         let checkout = checkout.into();
         let root = std::env::var_os(COLD_STORAGE_DIR_ENV)
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
-            .unwrap_or_else(|| checkout.join(COLD_STORAGE_DIR));
+            .unwrap_or_else(|| beside(&checkout));
         Self { checkout, root }
     }
 
@@ -81,6 +84,17 @@ impl ColdStorage {
             return None;
         }
         Some(self.root.join(relative).join(VALIDATION_BASELINE_DIR))
+    }
+}
+
+/// The `cold-storage` directory beside `checkout`, worked out lexically: the
+/// checkout's parent when its last component names a directory, and `..` from it
+/// otherwise, so an empty (the working directory) or `.` checkout reaches the
+/// working directory's parent.
+fn beside(checkout: &Path) -> PathBuf {
+    match (checkout.components().next_back(), checkout.parent()) {
+        (Some(Component::Normal(_)), Some(parent)) => parent.join(COLD_STORAGE_DIR),
+        _ => checkout.join("..").join(COLD_STORAGE_DIR),
     }
 }
 
