@@ -126,3 +126,39 @@ fn a_refused_prune_rides_the_report() {
         report
     );
 }
+
+// `refresh` is left out unless asked for, so an existing body keeps its bytes, and
+// it sits in key order between `mode` and `testCases` when it is.
+#[test]
+fn the_body_carries_refresh_only_when_asked() {
+    let mut body = ingest_body(&["carom".to_owned()], false, IngestMode::Changed);
+    assert!(!body.refresh);
+    body.refresh = true;
+    assert_eq!(
+        serde_json::to_string(&body).expect("the body serializes"),
+        r#"{"force":false,"mode":"changed","refresh":true,"testCases":["carom"]}"#
+    );
+    let read: IngestBody = serde_json::from_str(r#"{"refresh":true}"#).expect("parses");
+    assert!(read.refresh);
+    let read: IngestBody = serde_json::from_str("{}").expect("parses");
+    assert!(!read.refresh);
+}
+
+// The refresh's notice is a feed line of its own, which a client reads as it is.
+#[test]
+fn a_notice_line_reads_as_a_notice() {
+    let line = r#"{"event":"notice","message":"ingest: test suites update failed; ingesting without them"}"#;
+    assert_eq!(
+        parse_ingest_line(line),
+        Some(IngestProgress::Notice {
+            message: "ingest: test suites update failed; ingesting without them".to_owned()
+        })
+    );
+    assert_eq!(
+        serde_json::to_string(&IngestProgress::Notice {
+            message: "m".to_owned()
+        })
+        .expect("serializes"),
+        r#"{"event":"notice","message":"m"}"#
+    );
+}

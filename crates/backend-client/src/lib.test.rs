@@ -763,9 +763,7 @@ async fn ingest_reports_every_line_and_closes_with_the_summary() {
     let mut on_progress = |progress: &IngestProgress| seen.push(progress.clone());
     let summary = HttpBackendClient::new(base)
         .ingest(
-            &["carom@v1.0.0".to_string()],
-            true,
-            IngestMode::Absent,
+            &ingest_body(&["carom@v1.0.0".to_string()], true, IngestMode::Absent),
             &mut on_progress,
         )
         .await
@@ -818,7 +816,10 @@ async fn ingest_presents_the_clients_token() {
     let mut on_progress = |_: &IngestProgress| {};
     HttpBackendClient::new(base)
         .with_token(Some("svc-token".to_string()))
-        .ingest(&[], false, IngestMode::Absent, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
         .await
         .expect("the scan completes");
 
@@ -868,13 +869,165 @@ async fn a_client_without_a_token_sends_no_authorization() {
     );
 }
 
+/// The value a recorded request head carries for `name`, matched case-insensitively.
+fn header_value(request: &str, name: &str) -> Option<String> {
+    let prefix = format!("{}:", name.to_ascii_lowercase());
+    request.lines().find_map(|line| {
+        line.to_ascii_lowercase()
+            .starts_with(&prefix)
+            .then(|| line[prefix.len()..].trim().to_string())
+    })
+}
+
+#[tokio::test]
+async fn every_request_presents_the_access_service_token() {
+    let (base, request) = serve_ingest_feed(&[r#"{"versions":[]}"#]).await;
+    HttpBackendClient::new(base)
+        .with_access([AccessCredential::ServiceToken {
+            client_id: "client.access".to_string(),
+            client_secret: "s3cret".to_string(),
+        }])
+        .versions("carom")
+        .await
+        .expect("the read succeeds");
+
+    let request = request.lock().expect("the request is recorded").clone();
+    assert_eq!(
+        header_value(&request, ACCESS_CLIENT_ID_HEADER).as_deref(),
+        Some("client.access"),
+        "{request}"
+    );
+    assert_eq!(
+        header_value(&request, ACCESS_CLIENT_SECRET_HEADER).as_deref(),
+        Some("s3cret"),
+        "{request}"
+    );
+    assert!(
+        !request.to_ascii_lowercase().contains("authorization:"),
+        "an Access credential is no bearer token: {request}"
+    );
+}
+
+#[tokio::test]
+async fn an_ingest_presents_the_user_token_beside_the_bearer() {
+    let (base, request) =
+        serve_ingest_feed(&[r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#]).await;
+    let mut on_progress = |_: &IngestProgress| {};
+    HttpBackendClient::new(base)
+        .with_token(Some("svc-token".to_string()))
+        .with_access([AccessCredential::UserToken("user-jwt".to_string())])
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
+        .await
+        .expect("the scan completes");
+
+    let request = request.lock().expect("the request is recorded").clone();
+    assert_eq!(
+        header_value(&request, ACCESS_TOKEN_HEADER).as_deref(),
+        Some("user-jwt"),
+        "{request}"
+    );
+    assert!(presents_bearer(&request, "svc-token"), "{request}");
+}
+
+#[tokio::test]
+async fn the_local_stack_is_sent_the_local_identity() {
+    let (base, request) = serve_ingest_feed(&[r#"{"versions":[]}"#]).await;
+    HttpBackendClient::new(base)
+        .with_access([AccessCredential::LocalIdentity("dev@local".to_string())])
+        .versions("carom")
+        .await
+        .expect("the read succeeds");
+
+    let request = request.lock().expect("the request is recorded").clone();
+    assert_eq!(
+        header_value(&request, LOCAL_IDENTITY_HEADER).as_deref(),
+        Some("dev@local"),
+        "{request}"
+    );
+}
+
+#[test]
+fn debug_prints_no_credential() {
+    let client = HttpBackendClient::new("http://backend")
+        .with_token(Some("svc-token".to_string()))
+        .with_access([
+            AccessCredential::UserToken("user-jwt".to_string()),
+            AccessCredential::ServiceToken {
+                client_id: "client.access".to_string(),
+                client_secret: "s3cret".to_string(),
+            },
+        ]);
+    let printed = format!("{client:?}");
+    for secret in ["svc-token", "user-jwt", "client.access", "s3cret"] {
+        assert!(!printed.contains(secret), "{printed}");
+    }
+    assert!(printed.contains("http://backend"), "{printed}");
+}
+
+#[tokio::test]
+async fn a_refresh_is_asked_for_and_its_notice_reported() {
+    let notice = "ingest: test suites update failed; ingesting without them";
+    let notice_line = format!(r#"{{"event":"notice","message":"{notice}"}}"#);
+    let (base, request) = serve_ingest_feed(&[
+        &notice_line,
+        r#"{"event":"start","total":0}"#,
+        r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#,
+    ])
+    .await;
+    let mut seen: Vec<IngestProgress> = Vec::new();
+    let mut on_progress = |progress: &IngestProgress| seen.push(progress.clone());
+    let mut body = ingest_body(&[], false, IngestMode::Changed);
+    body.refresh = true;
+    HttpBackendClient::new(base)
+        .ingest(&body, &mut on_progress)
+        .await
+        .expect("a notice does not fail the scan");
+
+    assert_eq!(
+        seen.first(),
+        Some(&IngestProgress::Notice {
+            message: notice.to_string()
+        })
+    );
+    let request = request.lock().expect("the request is recorded").clone();
+    assert!(
+        request.contains(r#""refresh":true"#),
+        "unexpected request: {request}"
+    );
+}
+
+#[tokio::test]
+async fn a_scan_that_asks_no_refresh_sends_none() {
+    let (base, request) =
+        serve_ingest_feed(&[r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#]).await;
+    let mut on_progress = |_: &IngestProgress| {};
+    HttpBackendClient::new(base)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
+        .await
+        .expect("the scan completes");
+    let request = request.lock().expect("the request is recorded").clone();
+    assert!(
+        !request.contains("refresh"),
+        "unexpected request: {request}"
+    );
+}
+
 #[tokio::test]
 async fn a_whole_checkout_scan_names_no_targets() {
     let (base, request) =
         serve_ingest_feed(&[r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#]).await;
     let mut on_progress = |_: &IngestProgress| {};
     HttpBackendClient::new(base)
-        .ingest(&[], false, IngestMode::Absent, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
         .await
         .expect("the scan completes");
     let request = request.lock().expect("the request is recorded").clone();
@@ -895,7 +1048,10 @@ async fn a_changed_scan_names_its_mode_and_reads_each_skip_reason() {
     let mut seen: Vec<IngestProgress> = Vec::new();
     let mut on_progress = |progress: &IngestProgress| seen.push(progress.clone());
     HttpBackendClient::new(base)
-        .ingest(&[], false, IngestMode::Changed, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Changed),
+            &mut on_progress,
+        )
         .await
         .expect("the scan completes");
 
@@ -916,7 +1072,10 @@ async fn a_scan_without_a_mode_sends_none() {
         serve_ingest_feed(&[r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#]).await;
     let mut on_progress = |_: &IngestProgress| {};
     HttpBackendClient::new(base)
-        .ingest(&[], true, IngestMode::Absent, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], true, IngestMode::Absent),
+            &mut on_progress,
+        )
         .await
         .expect("the scan completes");
     let request = request.lock().expect("the request is recorded").clone();
@@ -932,7 +1091,10 @@ async fn a_streamed_error_line_fails_the_scan() {
     .await;
     let mut on_progress = |_: &IngestProgress| {};
     let err = HttpBackendClient::new(base)
-        .ingest(&[], false, IngestMode::Absent, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
         .await
         .expect_err("a streamed error fails the scan");
     assert!(
@@ -948,7 +1110,10 @@ async fn a_stream_that_never_closes_is_a_failure() {
     let (base, _) = serve_ingest_feed(&[r#"{"event":"start","total":1}"#]).await;
     let mut on_progress = |_: &IngestProgress| {};
     let err = HttpBackendClient::new(base)
-        .ingest(&[], false, IngestMode::Absent, &mut on_progress)
+        .ingest(
+            &ingest_body(&[], false, IngestMode::Absent),
+            &mut on_progress,
+        )
         .await
         .expect_err("a truncated feed fails the scan");
     assert!(

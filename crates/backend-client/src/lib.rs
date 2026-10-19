@@ -3,7 +3,8 @@
 //!
 //! The driver, the CLI, the arena and the publisher address the backend through
 //! this crate, typed over the contract shapes of `test-cabinet-contracts`, with the
-//! service token or the per-job token the caller holds. Runners resolve
+//! service token or the per-job token the caller holds, or, from outside the
+//! cluster, the [`AccessCredential`] the environment's edge takes. Runners resolve
 //! definitions through [`BackendClient`] instead of assuming a local `test-cases/`
 //! checkout; the filesystem catalog stays for local development, and this trait is
 //! the remote source of record.
@@ -18,6 +19,7 @@
 //! the renderer that hands a run the backend's screenshots, are the driver's
 //! extensions of this client and live with the driver.
 
+mod access;
 mod error;
 
 use std::path::{Path, PathBuf};
@@ -25,6 +27,10 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use tracing::instrument;
 
+pub use crate::access::{
+    ACCESS_CLIENT_ID_HEADER, ACCESS_CLIENT_SECRET_HEADER, ACCESS_TOKEN_HEADER, AccessCredential,
+    LOCAL_IDENTITY_HEADER,
+};
 pub use crate::error::{Error, Result};
 use test_cabinet_contracts::event::HarnessEvent;
 use test_cabinet_contracts::job_api::{
@@ -545,15 +551,38 @@ pub trait BackendClient: Send + Sync {
 /// `Authorization: Bearer` on every request it makes: an in-cluster caller's token
 /// (the backend service token, a driver's per-job token, a publisher's per-publish
 /// job token). Each route then decides which kind of caller it takes.
-#[derive(Debug, Clone)]
+///
+/// A caller outside the cluster reaches a deployed backend through the
+/// environment's edge instead, and attaches the [`AccessCredential`]s it holds via
+/// [`Self::with_access`]: Access lets the request through and the backend takes
+/// the identity from the assertion the edge minted. Against the local stack, which
+/// has no edge, the credential is the local identity header.
+///
+/// No credential's value reaches a span or a log: the request spans skip the
+/// client, [`Debug`] prints neither the token nor a credential's value, and every
+/// credential header is marked sensitive.
+#[derive(Clone)]
 pub struct HttpBackendClient {
     /// The backend base URL, without a trailing slash.
     base_url: String,
     /// The bearer token attached to every request, or `None` for a caller whose
     /// identity reaches the backend another way (an edge-asserted one).
     token: Option<String>,
+    /// The Access credentials attached to every request, for a caller that
+    /// reaches the backend through an environment's edge (or the local stack).
+    access: Vec<AccessCredential>,
     /// The shared HTTP client.
     http: reqwest::Client,
+}
+
+impl std::fmt::Debug for HttpBackendClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpBackendClient")
+            .field("base_url", &self.base_url)
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .field("access", &self.access)
+            .finish_non_exhaustive()
+    }
 }
 
 impl HttpBackendClient {
@@ -564,8 +593,18 @@ impl HttpBackendClient {
         Self {
             base_url: base.trim_end_matches('/').to_string(),
             token: None,
+            access: Vec::new(),
             http: reqwest::Client::new(),
         }
+    }
+
+    /// Attach (or, with an empty set, clear) the Access credentials this client
+    /// presents on every request beside the bearer token, reads included. A person
+    /// presents a user token and automation a service token; a caller that holds
+    /// both may present both, and the edge accepts either.
+    pub fn with_access(mut self, credentials: impl IntoIterator<Item = AccessCredential>) -> Self {
+        self.access = credentials.into_iter().collect();
+        self
     }
 
     /// Attach (or clear) the bearer token this client presents on every request,
@@ -586,14 +625,19 @@ impl HttpBackendClient {
     }
 
     /// The outbound headers for a request: the current trace context (a no-op
-    /// when no propagator is installed) plus the bearer token when one is set.
+    /// when no propagator is installed), the bearer token when one is set, and
+    /// every Access credential the client holds.
     fn headers(&self) -> http::HeaderMap {
         let mut headers = http::HeaderMap::new();
         test_cabinet_telemetry::propagation::inject_current_context(&mut headers);
         if let Some(token) = &self.token
-            && let Ok(value) = http::HeaderValue::from_str(&format!("Bearer {token}"))
+            && let Ok(mut value) = http::HeaderValue::from_str(&format!("Bearer {token}"))
         {
+            value.set_sensitive(true);
             headers.insert(http::header::AUTHORIZATION, value);
+        }
+        for credential in &self.access {
+            credential.apply(&mut headers);
         }
         headers
     }
@@ -1122,7 +1166,8 @@ impl BackendClient for HttpBackendClient {
         // The credential handed to this call rides along as `Authorization:
         // Bearer`, replacing the client's own configured token.
         let mut headers = self.headers();
-        if let Ok(value) = http::HeaderValue::from_str(&format!("Bearer {token}")) {
+        if let Ok(mut value) = http::HeaderValue::from_str(&format!("Bearer {token}")) {
+            value.set_sensitive(true);
             headers.insert(http::header::AUTHORIZATION, value);
         }
         let response = self
@@ -1355,40 +1400,42 @@ impl HttpBackendClient {
     /// Trigger an ingest scan of the backend's checkout, reporting each line of the
     /// streamed progress feed to `on_progress` as it arrives.
     ///
-    /// `targets` restricts the scan: each entry is a bare id (a test case slug or
-    /// folder name, or a suite slug) or an `id@version`. An empty list scans the
-    /// whole checkout. `force` asks the backend to overwrite every target, and
-    /// `mode` decides which already-stored targets a scan without `force` rewrites
-    /// (see [`IngestMode`]).
+    /// `body` is the request ([`ingest_body`] builds one from the targets, `force`
+    /// and the [`IngestMode`]); setting its `refresh` has a deployed backend's
+    /// ingest sidecar refresh the checkout to the environment's branch tip before
+    /// the scan, and a notice the refresh reports arrives as an
+    /// [`IngestProgress::Notice`] line.
     ///
-    /// The route takes the service token, so the client's token is presented like
-    /// on every other request.
+    /// The route takes the service token, so the client's token (or, through an
+    /// edge, its Access credential) is presented like on every other request.
     ///
     /// A scan that aborts reports it in band, on the stream that already answered
     /// 200; that line is returned as the error it is, after being reported to
     /// `on_progress` like every other line. A stream that ends without a closing
     /// line is likewise a failure rather than a silent success.
     #[instrument(
-        skip(self, on_progress),
-        fields(otel.kind = "client", http.request.method = "POST", ingest.targets = targets.len()),
+        skip(self, body, on_progress),
+        fields(
+            otel.kind = "client",
+            http.request.method = "POST",
+            ingest.targets = body.test_cases.as_ref().map_or(0, Vec::len),
+            ingest.refresh = body.refresh,
+        ),
         err,
     )]
     pub async fn ingest(
         &self,
-        targets: &[String],
-        force: bool,
-        mode: IngestMode,
+        body: &IngestBody,
         on_progress: &mut (dyn FnMut(&IngestProgress) + Send),
     ) -> Result<IngestSummary> {
         let url = self.url("/ingest");
-        let body = ingest_body(targets, force, mode);
         let response = self
             .http
             .post(&url)
             .headers(self.headers())
             .header(http::header::CONTENT_TYPE, "application/json")
             .header(http::header::ACCEPT, "application/x-ndjson")
-            .json(&body)
+            .json(body)
             .send()
             .await
             .map_err(|err| ingest_err(&url, &err))?;
