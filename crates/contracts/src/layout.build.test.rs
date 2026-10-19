@@ -81,3 +81,69 @@ fn missing_file_is_none() {
     let build = dir.path().join("implementation").join("dist");
     assert_eq!(serve_build_file(&build, "does-not-exist.js", "/b/"), None);
 }
+
+#[test]
+fn normalize_build_path_skips_empty_and_dot_segments() {
+    assert_eq!(normalize_build_path(""), Some(String::new()));
+    assert_eq!(normalize_build_path("/"), Some(String::new()));
+    assert_eq!(normalize_build_path("./"), Some(String::new()));
+    assert_eq!(
+        normalize_build_path("/assets//./index-AAA.js"),
+        Some("assets/index-AAA.js".to_owned())
+    );
+    assert_eq!(normalize_build_path("sub/"), Some("sub".to_owned()));
+}
+
+#[test]
+fn normalize_build_path_refuses_any_parent_segment() {
+    assert_eq!(normalize_build_path(".."), None);
+    assert_eq!(normalize_build_path("../secret"), None);
+    // Refused outright even when the result would stay inside the build.
+    assert_eq!(normalize_build_path("assets/../index.html"), None);
+    // A dotted name that is not exactly `..` is an ordinary segment.
+    assert_eq!(normalize_build_path("..a/b.."), Some("..a/b..".to_owned()));
+}
+
+#[test]
+fn content_type_for_reads_the_extension_of_the_last_segment() {
+    assert_eq!(content_type_for("index.html"), "text/html; charset=utf-8");
+    assert_eq!(
+        content_type_for("assets/index-AAA.JS"),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(content_type_for("game.wasm"), "application/wasm");
+    // The extension is the last one, and a lone leading dot names none.
+    assert_eq!(content_type_for("data.json.gz"), "application/octet-stream");
+    assert_eq!(content_type_for(".htaccess"), "application/octet-stream");
+    assert_eq!(
+        content_type_for("dir.html/LICENSE"),
+        "application/octet-stream"
+    );
+    assert_eq!(content_type_for(""), "application/octet-stream");
+}
+
+#[test]
+fn rewrite_html_base_is_the_rewrite_serve_build_file_applies() {
+    let html = "<!doctype html><html><head lang=\"en\">\
+        <link href=\"/style.css\"><script src='/main.js'></script></head></html>";
+    let dir = impl_with_build("dist", &[("index.html", html)]);
+    let build = dir.path().join("implementation").join("dist");
+    let served = serve_build_file(&build, "", "/runs/abc/build/").unwrap();
+    let rewritten = rewrite_html_base(html.as_bytes(), "/runs/abc/build/");
+    assert_eq!(served.body, rewritten);
+    assert_eq!(
+        String::from_utf8(rewritten).unwrap(),
+        "<!doctype html><html><head lang=\"en\"><base href=\"/runs/abc/build/\">\
+        <link href=\"style.css\"><script src='main.js'></script></head></html>"
+    );
+}
+
+#[test]
+fn rewrite_html_base_prepends_without_a_head_and_keeps_non_utf8() {
+    assert_eq!(
+        rewrite_html_base(b"<p><img src=\"/a.png\"></p>", "/b/"),
+        b"<base href=\"/b/\"><p><img src=\"a.png\"></p>".to_vec()
+    );
+    let invalid = [0xff, 0xfe, b'<', b'h'];
+    assert_eq!(rewrite_html_base(&invalid, "/b/"), invalid.to_vec());
+}
