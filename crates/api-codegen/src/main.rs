@@ -211,7 +211,7 @@ fn main() -> Result<()> {
             file: "jobs-api.ts",
             decls: ts_decls![&cfg;
                 jobs::DriverState, jobs::LaunchBody, bgg::GgRunRequest, jobs::ClaimedJob,
-                jobs::StatusUpdate,
+                jobs::LeaseRenewal, jobs::StatusUpdate,
                 jobs::JobState, jobs::JobSummary, jobs::ActiveJobOut, jobs::JobStatusOut,
                 jobs::LaunchAck, jobs::LaunchBatchBody, jobs::LaunchBatchItem, jobs::LaunchBatchAck,
                 bjobs::BulkCancelOut,
@@ -400,6 +400,10 @@ fn main() -> Result<()> {
         anon(
             "jobs-api/claimed-job.schema.json",
             root_schema::<jobs::ClaimedJob>(),
+        ),
+        anon(
+            "jobs-api/lease-renewal.schema.json",
+            root_schema::<jobs::LeaseRenewal>(),
         ),
         anon(
             "jobs-api/status-update.schema.json",

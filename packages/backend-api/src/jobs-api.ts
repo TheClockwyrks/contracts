@@ -242,6 +242,22 @@ export type ClaimedJob = {
 };
 
 /**
+ * The body of `POST /jobs/leases`: the jobs whose claim leases the dispatcher
+ * renews, each one whose driver `Job` it saw alive on this tick.
+ *
+ * The backend extends the lease of each listed job still driven (`dispatched`,
+ * `starting`, `running` or `storing`) to two minutes after the call and ignores
+ * the rest. See the backend API's "Leases and lost jobs" and the dispatcher
+ * overview's "Claim leases".
+ */
+export type LeaseRenewal = {
+  /**
+   * The ids of the jobs whose leases to renew.
+   */
+  jobIds: Array<string>;
+};
+
+/**
  * The body of `POST /jobs/{id}/status`: the new driver state, plus the produced
  * record on success or the reason on failure.
  */
@@ -377,6 +393,14 @@ export type ActiveJobOut = {
    * The job's current lifecycle state.
    */
   state: JobState;
+  /**
+   * When the job's claim lease lapses (RFC 3339, UTC). `POST /jobs/next` sets
+   * it two minutes after the claim and `POST /jobs/leases` extends it; a job
+   * past `dispatched` whose lease has lapsed is one the dispatcher reports lost.
+   * Absent for a job that was never claimed, and for a claimed one whose lease
+   * was never written. See the backend API's "Leases and lost jobs".
+   */
+  leaseExpiresAt?: string;
   /**
    * The test-case slug being run (e.g. `carom`).
    */
