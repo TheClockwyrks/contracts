@@ -22,8 +22,7 @@ pub struct SnapshotIndex {
     /// (`documents/runs/`) — snapshot-independent, so it is the same string in every
     /// generation. Informational: a reader resolves a run's document through the
     /// `documentKey` on its summary, because the key carries a content digest and so
-    /// cannot be composed from the run id. Operators and
-    /// `scripts/recover-run-media-from-snapshot.sh` use it to scope a listing.
+    /// cannot be composed from the run id. Operators use it to scope a listing.
     pub run_documents_prefix: String,
     pub cases_prefix: String,
     /// Where this snapshot's model catalog lives (`<prefix>/models.json`).
@@ -519,9 +518,8 @@ pub struct RunValidationMediaOut {
     schemars(rename = "Review")
 )]
 pub struct Review {
-    /// The reviewing account's id (stable across their reviews).
-    pub reviewer_id: String,
-    /// The reviewer's display name, shown beside their review.
+    /// The reviewer, shown beside their review: the name recorded with the review
+    /// from the identity that wrote it.
     pub reviewer: String,
     /// The reviewer's functional rating for each scoring domain. This review's
     /// overall rating is the worst across them. Empty on a review of a
@@ -559,14 +557,6 @@ pub struct Review {
     /// evolved.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub revisions: Vec<crate::review::ReviewRevision>,
-    /// The snapshot-relative object key of the reviewer's profile picture
-    /// (`pfp/<reviewer-id>`), or `None` when the reviewer has no picture. The
-    /// bytes are exported once per reviewer under the content-stable top-level
-    /// `pfp/` prefix (like run media under `MEDIA_PREFIX`); the site resolves the
-    /// key against the snapshot base into an absolute avatar URL.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "contract", ts(optional = nullable))]
-    pub picture_key: Option<String>,
 }
 
 /// A run's outbound links as the snapshot carries them.

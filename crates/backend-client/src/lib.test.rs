@@ -148,9 +148,7 @@ async fn list_runs_parses_page_cursor_links_and_reviews() {
             "record": record,
             "published": true,
             "reviews": [{
-                "reviewerId": "u1",
-                "reviewer": "Ada L.",
-                "username": "ada",
+                "reviewer": "ada@clockwyrks.com",
                 "ratings": [{ "domain": "gameplay", "rating": "great" }],
                 "writeup": "Plays well.",
                 "checklist": [],
@@ -176,7 +174,7 @@ async fn list_runs_parses_page_cursor_links_and_reviews() {
     assert_eq!(run.record.id, "run-1");
     assert!(run.published);
     assert_eq!(run.reviews.len(), 1);
-    assert_eq!(run.reviews[0].reviewer, "Ada L.");
+    assert_eq!(run.reviews[0].reviewer, "ada@clockwyrks.com");
     assert_eq!(
         run.reviews[0].ratings,
         vec![test_cabinet_contracts::review::DomainRating {
@@ -203,9 +201,7 @@ async fn read_run_parses_a_single_stored_run() {
         "record": record,
         "published": true,
         "reviews": [{
-            "reviewerId": "u2",
-            "reviewer": "Grace H.",
-            "username": "grace",
+            "reviewer": "grace@clockwyrks.com",
             "ratings": [{ "domain": "gameplay", "rating": "scuffed" }],
             "writeup": "Janky.",
             "checklist": [],
@@ -229,6 +225,7 @@ async fn read_run_parses_a_single_stored_run() {
             rating: test_cabinet_contracts::review::Rating::Scuffed,
         }]
     );
+    assert_eq!(run.reviews[0].reviewer, "grace@clockwyrks.com");
     assert_eq!(run.reviews[0].writeup, "Janky.");
     assert!(run.links.source_repo.is_none());
 }
@@ -803,6 +800,71 @@ async fn ingest_reports_every_line_and_closes_with_the_summary() {
     assert!(
         request.contains(r#""force":true"#),
         "unexpected request: {request}"
+    );
+}
+
+/// Whether a recorded request head carries `Authorization: Bearer <token>`.
+fn presents_bearer(request: &str, token: &str) -> bool {
+    let expected = format!("authorization: bearer {token}");
+    request
+        .lines()
+        .any(|line| line.trim().to_ascii_lowercase() == expected)
+}
+
+#[tokio::test]
+async fn ingest_presents_the_clients_token() {
+    let (base, request) =
+        serve_ingest_feed(&[r#"{"event":"done","total":0,"ingested":0,"skipped":0}"#]).await;
+    let mut on_progress = |_: &IngestProgress| {};
+    HttpBackendClient::new(base)
+        .with_token(Some("svc-token".to_string()))
+        .ingest(&[], false, IngestMode::Absent, &mut on_progress)
+        .await
+        .expect("the scan completes");
+
+    let request = request.lock().expect("the request is recorded").clone();
+    assert!(
+        presents_bearer(&request, "svc-token"),
+        "the ingest presents the service token: {request}"
+    );
+}
+
+#[tokio::test]
+async fn a_read_presents_the_clients_token() {
+    // Reads need an identity too, so the token rides every request, not only the
+    // mutating ones.
+    let (base, request) = serve_ingest_feed(&[r#"{"versions":["v1.0.0"]}"#]).await;
+    let versions = HttpBackendClient::new(base)
+        .with_token(Some("job-token".to_string()))
+        .versions("carom")
+        .await
+        .expect("the read succeeds");
+
+    assert_eq!(versions, vec!["v1.0.0".to_string()]);
+    let request = request.lock().expect("the request is recorded").clone();
+    assert!(
+        request.starts_with("GET /test-cases/carom/versions "),
+        "{request}"
+    );
+    assert!(
+        presents_bearer(&request, "job-token"),
+        "the read presents the token: {request}"
+    );
+}
+
+#[tokio::test]
+async fn a_client_without_a_token_sends_no_authorization() {
+    let (base, request) = serve_ingest_feed(&[r#"{"versions":[]}"#]).await;
+    HttpBackendClient::new(base)
+        .with_token(Some(String::new()))
+        .versions("carom")
+        .await
+        .expect("the read succeeds");
+
+    let request = request.lock().expect("the request is recorded").clone();
+    assert!(
+        !request.to_ascii_lowercase().contains("authorization:"),
+        "an empty token sends no header: {request}"
     );
 }
 
