@@ -108,10 +108,10 @@ fn the_engineless_engine_reports_no_version() {
 
 #[test]
 fn an_engine_missing_from_the_store_resolves_without_a_version() {
-    // A catalogue lookup is not a run: `tcab engines`, a case resolving its
-    // declared slugs, and a `tcab validate` on a host that has staged nothing all
-    // resolve engines without ever seeding one, so an empty store is not an error
-    // here. The two places it matters refuse on their own.
+    // A catalogue lookup is not a run: a case resolving its declared slugs and a
+    // `tcab validate` on a host that has staged nothing both resolve engines
+    // without ever seeding one, so an empty store is not an error here. The two
+    // places it matters refuse on their own.
     let store = tempfile::tempdir().expect("temp store");
     let engine = fixture_catalog_in(store.path())
         .resolve(&EngineSelection::new("simple-2d"))

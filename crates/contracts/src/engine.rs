@@ -139,10 +139,9 @@ impl ResolvedEngine {
     /// - the engine *does* vendor a runtime but the host package store holds no
     ///   readable, semver-shaped version for it. Resolution stays tolerant of that
     ///   because a catalogue lookup happens in places that never seed anything (a
-    ///   `tcab engines` listing, a case resolving its declared slugs, a
-    ///   `tcab validate` on a host that has staged nothing), and a store fault is
-    ///   reported where it can be acted on: seeding refuses the
-    ///   run with the restaging instructions, and the run gate refuses a case that
+    ///   case resolving its declared slugs, a `tcab validate` on a host that has
+    ///   staged nothing), and a store fault is reported where it can be acted
+    ///   on: seeding refuses the run with the restaging instructions, and the run gate refuses a case that
     ///   declared a version range it now cannot check.
     pub fn version(&self) -> Option<&Version> {
         self.version.as_ref()

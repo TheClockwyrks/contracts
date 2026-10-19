@@ -32,15 +32,9 @@ pub use crate::access::{
     LOCAL_IDENTITY_HEADER,
 };
 pub use crate::error::{Error, Result};
-use test_cabinet_contracts::event::HarnessEvent;
-use test_cabinet_contracts::job_api::{
-    ActiveJobOut, JobStatusOut, LaunchAck, LaunchBody, Notification,
-};
 use test_cabinet_contracts::match_play::{ControllerRef, TournamentRecord};
-use test_cabinet_contracts::preview::AssetPreview;
-use test_cabinet_contracts::publish_job_api::{PublishProgress, PublishResult};
-use test_cabinet_contracts::review::{FailureCap, Writeup};
-use test_cabinet_contracts::run_record::{PriorGameJamEntry, RunLinks, RunRecord};
+use test_cabinet_contracts::review::FailureCap;
+use test_cabinet_contracts::run_record::PriorGameJamEntry;
 use test_cabinet_contracts::test_case::{
     AssetDimension, AssetKind, AudioSpec, BuildCommands, CanvasSpec, Check, CheckAction,
     ContractSpec, Domain, EngineSupport, EngineWorkspaces, Erratum, Instrumentation, MatchSpec,
@@ -74,95 +68,6 @@ pub struct ResolvedArtifact {
     pub source: PathBuf,
     /// The raw file bytes.
     pub bytes: Vec<u8>,
-}
-
-/// The backend's acknowledgement of *enqueuing* a publish for a run.
-///
-/// Publishing is asynchronous: `POST /runs/{id}/publish` no longer flips the run
-/// public synchronously — it gates the run, enqueues a per-publish job, and returns
-/// this ack. The gh/wrangler release runs in a `tcab-publisher` Job and is observed
-/// over the live stream at [`live_url`](Self::live_url) (subscribe with
-/// [`BackendClient::watch_publish_job`]), which ends with a terminal
-/// [`PublishResult`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublishAck {
-    /// The enqueued publish job's id — the handle [`BackendClient::watch_publish_job`]
-    /// takes to observe the release.
-    pub publish_job_id: String,
-    /// The relative URL of the live NDJSON stream to observe the publish on
-    /// (`/publish-jobs/{id}/live`), as the backend reported it.
-    pub live_url: String,
-}
-
-/// A run on the backend's read side, as served by `GET /runs` and
-/// `GET /runs/{id}`: the full record (with its links resolved), its reviews, and
-/// the resolved links. This is what a reporter or gallery consumes.
-#[derive(Debug, Clone)]
-pub struct PublishedRun {
-    /// The full run record. Its [`RunLinks`] are the resolved links the backend
-    /// holds (the separate [`links`](Self::links) field, merged onto the blob).
-    pub record: RunRecord,
-    /// The run's reviews, oldest first. Empty while the run is pending review.
-    /// The run's overall rating is the worst across them and its score the
-    /// average.
-    pub reviews: Vec<PublishedReview>,
-    /// Whether the run is published (in the public snapshot).
-    pub published: bool,
-    /// The resolved source-repo and playable-build links the backend recorded.
-    pub links: RunLinks,
-}
-
-/// A review as the backend serves it on the read side: the reviewer's identity,
-/// the per-domain ratings, the prose body, and the reviewer's verdicts on the
-/// case's checklist items.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PublishedReview {
-    /// The identity the review is attributed to: the Access assertion's email.
-    pub reviewer: String,
-    /// The reviewer's rating for each of the case's scoring domains. This
-    /// review's overall rating is the worst across them.
-    pub ratings: Vec<test_cabinet_contracts::review::DomainRating>,
-    /// The review prose.
-    pub writeup: String,
-    /// The reviewer's verdicts on the case's declared checklist items.
-    pub checklist: Vec<test_cabinet_contracts::review::ReviewVerdict>,
-    /// RFC 3339 of when the review was submitted.
-    pub reviewed_at: String,
-}
-
-/// One page of published runs from `GET /runs`, newest first.
-#[derive(Debug, Clone)]
-pub struct RunPage {
-    /// The runs on this page, newest first.
-    pub runs: Vec<PublishedRun>,
-    /// The `before` cursor to pass for the following page, or `None` when this is
-    /// the last page.
-    pub next_before: Option<String>,
-}
-
-/// One item from a job's live stream (`GET /jobs/{id}/live`, NDJSON): a
-/// normalized harness event, or a live asset-generation preview frame. The
-/// backend tags a preview line `type: "asset_preview"` so the two are told apart
-/// (a [`HarnessEvent`]'s `type` is always one of the closed set of event kinds).
-#[derive(Debug, Clone, PartialEq)]
-pub enum LiveItem {
-    /// A normalized harness event.
-    Event(HarnessEvent),
-    /// A live asset-generation preview frame (never persisted).
-    Preview(AssetPreview),
-}
-
-/// One item from a publish job's live stream (`GET /publish-jobs/{id}/live`,
-/// NDJSON): a non-terminal progress line, or the terminal release outcome. The
-/// backend tags each line with a `type` discriminator (`progress` or `result`) so
-/// the two are told apart; the stream closes after the [`Result`](Self::Result).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PublishLiveItem {
-    /// A human-readable progress line streamed while the release runs.
-    Progress(PublishProgress),
-    /// The terminal release outcome (links on success, reason on failure); the
-    /// stream ends with this.
-    Result(PublishResult),
 }
 
 /// What runners use to resolve definitions from, and publish runs to, the
@@ -231,49 +136,6 @@ pub trait BackendClient: Send + Sync {
     /// The prompt template source for a version (also returned inline by
     /// [`Self::resolve_version`]; this is the explicit fetch).
     async fn prompt_template(&self, slug: &str, version: &str) -> Result<String>;
-
-    /// Submit a review for a pushed run. (`POST /runs/{id}/reviews`) The review is
-    /// attributed to the account behind the client's bearer token; a run may carry
-    /// many reviews, one per account, and re-submitting from the same account
-    /// updates it. On a validator-rated run the writeup carries the run-wide
-    /// `aesthetic` tier and its checklist is the reviewer's overrides of the
-    /// validators' verdicts. Requires a bearer token.
-    async fn submit_review(&self, run_id: &str, review: &Writeup) -> Result<()>;
-
-    /// Enqueue a publish for a run. (`POST /runs/{id}/publish`) Publishing is
-    /// asynchronous: the backend gates the run (refused unless it has at least one
-    /// review and is not an infrastructure failure), enqueues a per-publish job, and
-    /// returns the [`PublishAck`] carrying the publish-job id and the live URL. The
-    /// gh/wrangler release runs in a `tcab-publisher` Job; observe it (and learn its
-    /// terminal outcome) by subscribing with [`Self::watch_publish_job`]. Requires a
-    /// bearer token.
-    async fn publish_run(&self, run_id: &str) -> Result<PublishAck>;
-
-    /// Watch a publish job's live progress. (`GET /publish-jobs/{id}/live`, NDJSON)
-    /// Each line is one [`PublishLiveItem`] — a progress line or the terminal result
-    /// — passed to `on_item` as it arrives. Returns once the stream closes, which the
-    /// backend does after delivering the terminal [`PublishLiveItem::Result`]; a
-    /// connection to an already-finished publish returns after the replayed backlog
-    /// (which ends in that result). The terminal outcome (links on success, reason on
-    /// failure) is the last item delivered.
-    ///
-    /// `on_item` is a `&mut dyn FnMut` (not an `impl Stream`) so the trait stays
-    /// object-safe — it is consumed through `dyn BackendClient`, mirroring
-    /// [`Self::watch_job`]. A malformed line is surfaced as a failure
-    /// [`PublishResult`] rather than tearing down the watch.
-    ///
-    /// Defaults to an error so a backend without publish support (or a test stub) is
-    /// explicit about not streaming; the HTTP client overrides it.
-    async fn watch_publish_job(
-        &self,
-        publish_job_id: &str,
-        _on_item: &mut (dyn FnMut(PublishLiveItem) + Send),
-    ) -> Result<()> {
-        Err(Error::Publish(format!(
-            "this backend client cannot stream the live progress of publish job \
-             `{publish_job_id}`"
-        )))
-    }
 
     /// Upload one proof-of-implementation media file for a published run, served
     /// back as the reviewer's submitted-evidence pane. `file` is `<proof-id>.<ext>`.
@@ -429,17 +291,6 @@ pub trait BackendClient: Send + Sync {
         Ok(())
     }
 
-    /// List published runs, newest first, paginated. (`GET /runs?before=&limit=`)
-    ///
-    /// `before` is the cursor from a previous page's
-    /// [`RunPage::next_before`] (`None` for the first page); `limit` caps the page
-    /// size (the backend clamps it to its own bounds). This is the read side a
-    /// reporter or gallery consumes.
-    async fn list_runs(&self, before: Option<&str>, limit: Option<usize>) -> Result<RunPage>;
-
-    /// Read one published run by id. (`GET /runs/{id}`)
-    async fn read_run(&self, id: &str) -> Result<PublishedRun>;
-
     /// The gameplay READMEs of earlier game-jam runs of jam `slug` built by
     /// `model_id`, oldest first.
     /// (`GET /game-jams/{slug}/prior-readmes?model=`)
@@ -457,87 +308,6 @@ pub trait BackendClient: Send + Sync {
         _model_id: &str,
     ) -> Result<Vec<PriorGameJamEntry>> {
         Ok(Vec::new())
-    }
-
-    /// Enqueue a run on the backend's job queue. (`POST /jobs`, bearer auth)
-    ///
-    /// `body` is the canonical [`LaunchBody`] (serialized camelCase to match the
-    /// backend); `token` is the bearer credential presented for this call in place
-    /// of the client's own. The backend takes the enqueue from a person only, so a
-    /// caller without an identity is rejected `401` and one that is not a person
-    /// `403`.
-    /// Returns the enqueued job's id — the handle the watch/status methods take.
-    ///
-    /// Defaults to an error so a backend without queue support (or a test stub) is
-    /// explicit about not enqueuing; the HTTP client overrides it.
-    async fn launch_run(&self, _body: &LaunchBody, _token: &str) -> Result<String> {
-        Err(Error::Publish(
-            "this backend client cannot enqueue runs".to_string(),
-        ))
-    }
-
-    /// One job's current status. (`GET /jobs/{id}`) Carries the lifecycle state
-    /// and, once it succeeded, the produced run record's id (read the record back
-    /// via [`Self::read_run`]); else the terminal failure reason.
-    ///
-    /// Defaults to an error so a backend without queue support (or a test stub) is
-    /// explicit about not serving job status; the HTTP client overrides it.
-    async fn job_status(&self, job_id: &str) -> Result<JobStatusOut> {
-        Err(Error::Publish(format!(
-            "this backend client cannot report the status of job `{job_id}`"
-        )))
-    }
-
-    /// The runs still in flight (queued, dispatched, or running), each described
-    /// by the identity captured at enqueue. (`GET /jobs/active`)
-    ///
-    /// Defaults to an empty list so a backend without queue support (or a test
-    /// stub) stays valid; the HTTP client overrides it.
-    async fn list_active_jobs(&self) -> Result<Vec<ActiveJobOut>> {
-        Ok(Vec::new())
-    }
-
-    /// Watch a job's live progress. (`GET /jobs/{id}/live`, NDJSON) Each line is
-    /// one [`LiveItem`] — a harness event or an asset-preview frame — passed to
-    /// `on_item` as it arrives. Returns once the stream closes, which the backend
-    /// does when the run reaches a terminal state; read the terminal outcome (and
-    /// on success the produced record's id) back via [`Self::job_status`]. A
-    /// connection to an already-finished job returns after the replayed backlog.
-    ///
-    /// `on_item` is a `&mut dyn FnMut` (not an `impl Stream`) so the trait stays
-    /// object-safe — it is consumed through `dyn BackendClient`. The CLI prints
-    /// each item; a malformed line is surfaced as an `unknown` event rather than
-    /// tearing down the watch (mirroring the web console's transport).
-    ///
-    /// Defaults to an error so a backend without queue support (or a test stub) is
-    /// explicit about not streaming; the HTTP client overrides it.
-    async fn watch_job(
-        &self,
-        job_id: &str,
-        _on_item: &mut (dyn FnMut(LiveItem) + Send),
-    ) -> Result<()> {
-        Err(Error::Publish(format!(
-            "this backend client cannot stream the live progress of job `{job_id}`"
-        )))
-    }
-
-    /// Subscribe to the worker-wide run-completion feed. (`GET /notifications`,
-    /// SSE) Each event's `data:` payload is one [`Notification`], passed to
-    /// `on_notification` as it arrives. Live-only (no backlog); returns when the
-    /// connection ends. A malformed payload is dropped rather than ending the
-    /// subscription (mirroring the web console's transport).
-    ///
-    /// `on_notification` is a `&mut dyn FnMut` so the trait stays object-safe.
-    ///
-    /// Defaults to an error so a backend without queue support (or a test stub) is
-    /// explicit about not serving notifications; the HTTP client overrides it.
-    async fn subscribe_notifications(
-        &self,
-        _on_notification: &mut (dyn FnMut(Notification) + Send),
-    ) -> Result<()> {
-        Err(Error::Publish(
-            "this backend client cannot serve notifications".to_string(),
-        ))
     }
 }
 
@@ -790,99 +560,6 @@ impl BackendClient for HttpBackendClient {
     }
 
     #[instrument(
-        skip(self, review),
-        fields(otel.kind = "client", http.request.method = "POST", run.id = %run_id),
-        err,
-    )]
-    async fn submit_review(&self, run_id: &str, review: &Writeup) -> Result<()> {
-        let url = self.url(&format!("/runs/{}/reviews", encode(run_id)));
-        let body = ReviewBody {
-            ratings: &review.ratings,
-            aesthetic: review.aesthetic,
-            writeup: &review.body,
-            checklist: &review.checklist,
-        };
-        let response = self
-            .http
-            .post(&url)
-            .headers(self.headers())
-            .json(&body)
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        error_for_status(&url, response).await?;
-        Ok(())
-    }
-
-    #[instrument(
-        skip(self),
-        fields(otel.kind = "client", http.request.method = "POST", run.id = %run_id),
-        err,
-    )]
-    async fn publish_run(&self, run_id: &str) -> Result<PublishAck> {
-        let url = self.url(&format!("/runs/{}/publish", encode(run_id)));
-        let response = self
-            .http
-            .post(&url)
-            .headers(self.headers())
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        // `202 Accepted` with the enqueued publish job's id + live URL; the gate
-        // failures (no review, infra failure) surface as the backend's error
-        // envelope through `error_for_status`.
-        let response = error_for_status(&url, response).await?;
-        let ack: PublishAckBody = response
-            .json()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        Ok(PublishAck {
-            publish_job_id: ack.publish_job_id,
-            live_url: ack.live_url,
-        })
-    }
-
-    #[instrument(
-        skip(self, on_item),
-        fields(otel.kind = "client", http.request.method = "GET", publish_job.id = %publish_job_id),
-        err,
-    )]
-    async fn watch_publish_job(
-        &self,
-        publish_job_id: &str,
-        on_item: &mut (dyn FnMut(PublishLiveItem) + Send),
-    ) -> Result<()> {
-        let url = self.url(&format!("/publish-jobs/{}/live", encode(publish_job_id)));
-        let response = self
-            .http
-            .get(&url)
-            .headers(self.headers())
-            .header(http::header::ACCEPT, "application/x-ndjson")
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        let mut response = error_for_status(&url, response).await?;
-        // NDJSON: accumulate bytes and emit one item per `\n`-terminated line,
-        // mirroring `watch_job`. The `stream` feature isn't enabled workspace-wide,
-        // so pull chunks directly (`Response::chunk`) rather than a `bytes_stream`.
-        let mut buffer = String::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|err| backend_err(&url, err))?
-        {
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
-            while let Some(newline) = buffer.find('\n') {
-                let line: String = buffer.drain(..=newline).collect();
-                emit_publish_line(line.trim(), on_item);
-            }
-        }
-        // A final line the stream closed without a trailing newline on.
-        emit_publish_line(buffer.trim(), on_item);
-        Ok(())
-    }
-
-    #[instrument(
         skip(self, bytes),
         fields(otel.kind = "client", http.request.method = "POST", run.id = %run_id, proof.file = %file),
         err,
@@ -1111,31 +788,6 @@ impl BackendClient for HttpBackendClient {
         Ok(())
     }
 
-    async fn list_runs(&self, before: Option<&str>, limit: Option<usize>) -> Result<RunPage> {
-        let mut path = String::from("/runs");
-        let mut query = Vec::new();
-        if let Some(before) = before {
-            query.push(format!("before={}", encode(before)));
-        }
-        if let Some(limit) = limit {
-            query.push(format!("limit={limit}"));
-        }
-        if !query.is_empty() {
-            path.push('?');
-            path.push_str(&query.join("&"));
-        }
-        let body: RunPageBody = self.get_json(&path).await?;
-        Ok(RunPage {
-            runs: body.runs.into_iter().map(stored_run_from).collect(),
-            next_before: body.next_before,
-        })
-    }
-
-    async fn read_run(&self, id: &str) -> Result<PublishedRun> {
-        let body: StoredRunBody = self.get_json(&format!("/runs/{}", encode(id))).await?;
-        Ok(stored_run_from(body))
-    }
-
     async fn game_jam_prior_readmes(
         &self,
         slug: &str,
@@ -1147,250 +799,6 @@ impl BackendClient for HttpBackendClient {
             encode(model_id),
         );
         self.get_json(&path).await
-    }
-
-    #[instrument(
-        skip(self, body, token),
-        fields(
-            otel.kind = "client",
-            http.request.method = "POST",
-            url.path = "/jobs",
-            case.slug = %body.test_case,
-            case.version = %body.version,
-            variant = %body.variant,
-        ),
-        err,
-    )]
-    async fn launch_run(&self, body: &LaunchBody, token: &str) -> Result<String> {
-        let url = self.url("/jobs");
-        // The credential handed to this call rides along as `Authorization:
-        // Bearer`, replacing the client's own configured token. An empty one sends
-        // the client's own, for a caller whose identity reaches the backend as an
-        // Access credential instead.
-        let mut headers = self.headers();
-        if !token.is_empty()
-            && let Ok(mut value) = http::HeaderValue::from_str(&format!("Bearer {token}"))
-        {
-            value.set_sensitive(true);
-            headers.insert(http::header::AUTHORIZATION, value);
-        }
-        let response = self
-            .http
-            .post(&url)
-            .headers(headers)
-            .json(body)
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        let response = error_for_status(&url, response).await?;
-        let ack: LaunchAck = response
-            .json()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        Ok(ack.job_id)
-    }
-
-    async fn job_status(&self, job_id: &str) -> Result<JobStatusOut> {
-        self.get_json(&format!("/jobs/{}", encode(job_id))).await
-    }
-
-    async fn list_active_jobs(&self) -> Result<Vec<ActiveJobOut>> {
-        self.get_json("/jobs/active").await
-    }
-
-    #[instrument(
-        skip(self, on_item),
-        fields(otel.kind = "client", http.request.method = "GET", job.id = %job_id),
-        err,
-    )]
-    async fn watch_job(
-        &self,
-        job_id: &str,
-        on_item: &mut (dyn FnMut(LiveItem) + Send),
-    ) -> Result<()> {
-        let url = self.url(&format!("/jobs/{}/live", encode(job_id)));
-        let response = self
-            .http
-            .get(&url)
-            .headers(self.headers())
-            .header(http::header::ACCEPT, "application/x-ndjson")
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        let mut response = error_for_status(&url, response).await?;
-        // NDJSON: accumulate bytes and emit one item per `\n`-terminated line. The
-        // `stream` feature isn't enabled workspace-wide, so pull chunks directly
-        // (`Response::chunk`) rather than a `bytes_stream`.
-        let mut buffer = String::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|err| backend_err(&url, err))?
-        {
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
-            while let Some(newline) = buffer.find('\n') {
-                let line: String = buffer.drain(..=newline).collect();
-                emit_live_line(line.trim(), on_item);
-            }
-        }
-        // A final line the stream closed without a trailing newline on.
-        emit_live_line(buffer.trim(), on_item);
-        Ok(())
-    }
-
-    #[instrument(
-        skip(self, on_notification),
-        fields(otel.kind = "client", http.request.method = "GET", url.path = "/notifications"),
-        err,
-    )]
-    async fn subscribe_notifications(
-        &self,
-        on_notification: &mut (dyn FnMut(Notification) + Send),
-    ) -> Result<()> {
-        let url = self.url("/notifications");
-        let response = self
-            .http
-            .get(&url)
-            .headers(self.headers())
-            .header(http::header::ACCEPT, "text/event-stream")
-            .send()
-            .await
-            .map_err(|err| backend_err(&url, err))?;
-        let mut response = error_for_status(&url, response).await?;
-        // SSE: events are separated by a blank line; each carries one or more
-        // `data:` lines whose concatenation is the JSON payload. Accumulate bytes,
-        // split complete events on the blank-line boundary, and decode each one.
-        // Normalize CRLF so the boundary search and field parsing are line-ending
-        // agnostic.
-        let mut buffer = String::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|err| backend_err(&url, err))?
-        {
-            buffer.push_str(&String::from_utf8_lossy(&chunk).replace("\r\n", "\n"));
-            while let Some(boundary) = buffer.find("\n\n") {
-                let event: String = buffer.drain(..boundary + 2).collect();
-                if let Some(notification) = parse_sse_notification(&event) {
-                    on_notification(notification);
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Emit one NDJSON live line as a [`LiveItem`]: a line tagged
-/// `type: "asset_preview"` is a live drawing frame; every other non-empty line is
-/// a normalized harness event. A malformed line is surfaced as an `unknown` event
-/// carrying the raw text rather than aborting the watch (the contract's `unknown`
-/// kind), mirroring the web console's transport. An empty line is skipped.
-fn emit_live_line(line: &str, on_item: &mut (dyn FnMut(LiveItem) + Send)) {
-    if line.is_empty() {
-        return;
-    }
-    // Peek the `type` tag to route the line: a preview frame is tagged
-    // `asset_preview`; a harness event's `type` is one of the closed set of event
-    // kinds (never `asset_preview`).
-    let is_preview = serde_json::from_str::<TaggedLine>(line)
-        .ok()
-        .and_then(|tagged| tagged.r#type)
-        .as_deref()
-        == Some("asset_preview");
-    if is_preview {
-        if let Ok(preview) = serde_json::from_str::<AssetPreview>(line) {
-            on_item(LiveItem::Preview(preview));
-            return;
-        }
-    } else if let Ok(event) = serde_json::from_str::<HarnessEvent>(line) {
-        on_item(LiveItem::Event(event));
-        return;
-    }
-    on_item(LiveItem::Event(unknown_event(line)));
-}
-
-/// Emit one publish-stream NDJSON line as a [`PublishLiveItem`]. The backend tags
-/// each line with a `type` discriminator: a `progress` line carries a `message`,
-/// the terminal `result` line carries the release outcome. An empty line is
-/// skipped; a line that is neither (a malformed item) is surfaced as a failure
-/// [`PublishResult`] so nothing is silently dropped, mirroring `emit_live_line`'s
-/// `unknown` fallback.
-fn emit_publish_line(line: &str, on_item: &mut (dyn FnMut(PublishLiveItem) + Send)) {
-    if line.is_empty() {
-        return;
-    }
-    let kind = serde_json::from_str::<TaggedLine>(line)
-        .ok()
-        .and_then(|tagged| tagged.r#type);
-    match kind.as_deref() {
-        Some("progress") => {
-            if let Ok(progress) = serde_json::from_str::<PublishProgress>(line) {
-                on_item(PublishLiveItem::Progress(progress));
-                return;
-            }
-        }
-        Some("result") => {
-            if let Ok(result) = serde_json::from_str::<PublishResult>(line) {
-                on_item(PublishLiveItem::Result(result));
-                return;
-            }
-        }
-        _ => {}
-    }
-    on_item(PublishLiveItem::Result(unknown_publish_result(line)));
-}
-
-/// The terminal [`PublishResult`] standing in for an unparseable publish-stream
-/// line: a failure carrying the raw text as its `detail`, so a malformed item ends
-/// the watch with a legible reason rather than being dropped.
-fn unknown_publish_result(raw: &str) -> PublishResult {
-    PublishResult {
-        state: test_cabinet_contracts::publish_job_api::PublishState::Failed,
-        source_repo: None,
-        playable_build: None,
-        detail: Some(format!("unrecognized publish stream line: {raw}")),
-    }
-}
-
-/// Decode one SSE event block into a [`Notification`]: concatenate its `data:`
-/// field values (SSE allows an event to carry several) and parse the result as
-/// JSON. Returns `None` for a comment/keep-alive block or a malformed payload,
-/// which the subscription drops rather than tearing down.
-fn parse_sse_notification(event: &str) -> Option<Notification> {
-    let mut data = String::new();
-    for line in event.lines() {
-        if let Some(value) = line.strip_prefix("data:") {
-            if !data.is_empty() {
-                data.push('\n');
-            }
-            data.push_str(value.strip_prefix(' ').unwrap_or(value));
-        }
-    }
-    if data.is_empty() {
-        return None;
-    }
-    serde_json::from_str(&data).ok()
-}
-
-/// The `type` tag of a live NDJSON line, peeked to route it (a preview frame is
-/// tagged `asset_preview`; a harness event's `type` is one of the event kinds).
-#[derive(Deserialize)]
-struct TaggedLine {
-    #[serde(default)]
-    r#type: Option<String>,
-}
-
-/// A harness event standing in for an unparseable live line: the contract's
-/// [`Unknown`](test_cabinet_contracts::event::EventKind::Unknown) kind, carrying the raw text so
-/// nothing is silently dropped. The timestamp is left empty (the line carried no
-/// usable one), matching the web console's `unknown`-line fallback.
-fn unknown_event(raw: &str) -> HarnessEvent {
-    HarnessEvent {
-        timestamp: String::new(),
-        session_id: None,
-        kind: test_cabinet_contracts::event::EventKind::Unknown {
-            raw: serde_json::Value::String(raw.to_string()),
-        },
     }
 }
 
@@ -1693,7 +1101,8 @@ struct VersionBody {
     /// [`BackendClient::resolve_version`] and resolves the run image off the
     /// [`TestCaseVersion`] that comes back. A field missing here would silently
     /// resolve the 2D image for a 3D case — a failure that only shows up inside the
-    /// container as `voxel: not found`, and never at all in a local `tcab run`.
+    /// container as `voxel: not found`, and never on a path that resolves the version
+    /// off its on-disk manifest.
     #[serde(default)]
     asset_dimension: AssetDimension,
     /// The sprite-sheet grid and sequences. Deserialized straight into
@@ -2435,116 +1844,9 @@ struct CheckBody {
     actions: Vec<CheckAction>,
 }
 
-#[derive(serde::Serialize)]
-struct ReviewBody<'a> {
-    /// The reviewer's functional rating for each scoring domain (a legacy run).
-    ratings: &'a [test_cabinet_contracts::review::DomainRating],
-    /// The reviewer's run-wide aesthetic tier (a validator-rated run). Omitted
-    /// when absent so a legacy writeup posts exactly what it did before.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    aesthetic: Option<test_cabinet_contracts::review::AestheticRating>,
-    writeup: &'a str,
-    /// The reviewer's verdicts on the case's declared checklist items: the full
-    /// checklist on a legacy run or a game jam, and the reviewer's **overrides**
-    /// of the validators' verdicts on a validator-rated run — sent as-is either
-    /// way; the caller (the writeup file's `review.<id>` lines) decides its
-    /// content.
-    checklist: &'a [test_cabinet_contracts::review::ReviewVerdict],
-}
-
-/// The body of the `202 Accepted` from `POST /runs/{id}/publish`: the enqueued
-/// publish job's id and the live URL to observe it on (mirrors the backend's
-/// `PublishResponse`).
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PublishAckBody {
-    publish_job_id: String,
-    live_url: String,
-}
-
 #[derive(Deserialize)]
 struct ControllersBody {
     controllers: Vec<ControllerRef>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RunPageBody {
-    runs: Vec<StoredRunBody>,
-    #[serde(default)]
-    next_before: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StoredRunBody {
-    record: RunRecord,
-    #[serde(default)]
-    reviews: Vec<ReviewOutBody>,
-    #[serde(default)]
-    published: bool,
-    #[serde(default)]
-    links: LinksOutBody,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ReviewOutBody {
-    #[serde(default)]
-    reviewer: String,
-    /// The reviewer's rating for each scoring domain. Deserialized straight into
-    /// [`test_cabinet_contracts::review::DomainRating`] — the wire shape matches it.
-    #[serde(default)]
-    ratings: Vec<test_cabinet_contracts::review::DomainRating>,
-    writeup: String,
-    #[serde(default)]
-    checklist: Vec<test_cabinet_contracts::review::ReviewVerdict>,
-    #[serde(default)]
-    reviewed_at: String,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-struct LinksOutBody {
-    #[serde(default)]
-    source_repo: Option<String>,
-    #[serde(default)]
-    playable_build: Option<String>,
-}
-
-/// Turn a wire run into a [`PublishedRun`], resolving its links. The backend
-/// serves the resolved links in a separate `links` object as well as on the
-/// record blob; the separate object is authoritative, so it wins, and the merged
-/// result is written back onto the record so callers see one consistent set.
-fn stored_run_from(body: StoredRunBody) -> PublishedRun {
-    let mut record = body.record;
-    let links = RunLinks {
-        source_repo: body
-            .links
-            .source_repo
-            .or_else(|| record.links.source_repo.clone()),
-        playable_build: body
-            .links
-            .playable_build
-            .or_else(|| record.links.playable_build.clone()),
-    };
-    record.links = links.clone();
-    PublishedRun {
-        record,
-        reviews: body
-            .reviews
-            .into_iter()
-            .map(|review| PublishedReview {
-                reviewer: review.reviewer,
-                ratings: review.ratings,
-                writeup: review.writeup,
-                checklist: review.checklist,
-                reviewed_at: review.reviewed_at,
-            })
-            .collect(),
-        published: body.published,
-        links,
-    }
 }
 
 // --- Helpers ----------------------------------------------------------------

@@ -94,7 +94,7 @@ struct Manifest {
     /// (for example `0.5`) because every cap is long enough that seconds add no
     /// useful precision; it is normalized to whole seconds at resolution via
     /// [`runtime_hours_to_seconds`]. Supplies the per-case default that a
-    /// run can override (for example `tcab run --max-runtime`). Defaults to
+    /// run can override (the launch's maximum-runtime override). Defaults to
     /// [`default_max_runtime_hours`] when omitted so a run is never unbounded.
     #[serde(default = "default_max_runtime_hours")]
     max_runtime_hours: f64,
