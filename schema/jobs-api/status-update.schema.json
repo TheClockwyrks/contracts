@@ -14,6 +14,11 @@
           "type": "string"
         },
         {
+          "const": "storing",
+          "description": "The held report: the run is over and the driver is handing its result to\ndurable storage. The update carries the record (and the failure `detail` when\nthe run failed), which the backend stores against the job before it answers;\na repeated `storing` report replaces them. The driver reports this before it\nuploads anything, and again after each failed upload attempt with the failure\nas its `detail`. A job lost while it holds a record is finished from it. See\nthe driver overview's \"Finishing a run\" and the backend API's \"The held\nrecord\".",
+          "type": "string"
+        },
+        {
           "const": "succeeded",
           "description": "The run produced a record (carried in the same update).",
           "type": "string"
@@ -342,9 +347,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "The body of `POST /jobs/{id}/status`: the new driver state, plus the produced\nrecord on success or the reason on failure.",
   "properties": {
+    "artifactsStored": {
+      "description": "Whether the artifacts service acknowledged the run tree, carried on a\nterminal report: `true` when it did, `false` when it did not, and absent when\nthe driver has no artifacts service. The backend leaves what it recorded for\nthe run as it is when the field is absent.",
+      "type": ["boolean", "null"]
+    },
     "detail": {
       "default": null,
-      "description": "A human-readable failure reason, used when `state` is `failed`.",
+      "description": "A human-readable failure reason, used when `state` is `failed`, and on a\n`storing` report of a failed run (or the upload failure a repeated `storing`\nreport is made for).",
       "type": ["string", "null"]
     },
     "record": {
@@ -362,6 +371,10 @@
     "state": {
       "$ref": "#/$defs/DriverState",
       "description": "The state the driver is reporting."
+    },
+    "storeFault": {
+      "description": "The last upload failure, carried on a terminal report when the run tree was\nnot stored because of the store rather than the run's own tree. The backend reads it as evidence about the store whatever state the job\nis in.",
+      "type": ["string", "null"]
     }
   },
   "required": ["state"],

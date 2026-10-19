@@ -29,6 +29,11 @@
           "type": "string"
         },
         {
+          "const": "storing",
+          "description": "The run is over and the driver is handing its result to durable storage: the\nbackend holds the run's record (the held report) while the driver uploads the\nrun tree and the bundle. Not terminal.",
+          "type": "string"
+        },
+        {
           "const": "succeeded",
           "description": "The run produced a record.",
           "type": "string"

@@ -188,6 +188,15 @@ pub enum DriverState {
     Starting,
     /// Execution has begun.
     Running,
+    /// The held report: the run is over and the driver is handing its result to
+    /// durable storage. The update carries the record (and the failure `detail` when
+    /// the run failed), which the backend stores against the job before it answers;
+    /// a repeated `storing` report replaces them. The driver reports this before it
+    /// uploads anything, and again after each failed upload attempt with the failure
+    /// as its `detail`. A job lost while it holds a record is finished from it. See
+    /// the driver overview's "Finishing a run" and the backend API's "The held
+    /// record".
+    Storing,
     /// The run produced a record (carried in the same update).
     Succeeded,
     /// The run could not be driven to a record (reason in `detail`).
@@ -221,10 +230,25 @@ pub struct StatusUpdate {
     #[serde(default)]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub record: Option<RunRecord>,
-    /// A human-readable failure reason, used when `state` is `failed`.
+    /// A human-readable failure reason, used when `state` is `failed`, and on a
+    /// `storing` report of a failed run (or the upload failure a repeated `storing`
+    /// report is made for).
     #[serde(default)]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub detail: Option<String>,
+    /// Whether the artifacts service acknowledged the run tree, carried on a
+    /// terminal report: `true` when it did, `false` when it did not, and absent when
+    /// the driver has no artifacts service. The backend leaves what it recorded for
+    /// the run as it is when the field is absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub artifacts_stored: Option<bool>,
+    /// The last upload failure, carried on a terminal report when the run tree was
+    /// not stored because of the store rather than the run's own tree. The backend reads it as evidence about the store whatever state the job
+    /// is in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub store_fault: Option<String>,
 }
 
 /// The response to a successful `POST /jobs`: the enqueued job's id and where to
@@ -306,6 +330,10 @@ pub enum JobState {
     Starting,
     /// The driver is executing the run.
     Running,
+    /// The run is over and the driver is handing its result to durable storage: the
+    /// backend holds the run's record (the held report) while the driver uploads the
+    /// run tree and the bundle. Not terminal.
+    Storing,
     /// The run produced a record.
     Succeeded,
     /// The run could not be driven to a record.
@@ -323,6 +351,7 @@ impl JobState {
             "dispatched" => Self::Dispatched,
             "starting" => Self::Starting,
             "running" => Self::Running,
+            "storing" => Self::Storing,
             "succeeded" => Self::Succeeded,
             "failed" => Self::Failed,
             "canceled" => Self::Canceled,
