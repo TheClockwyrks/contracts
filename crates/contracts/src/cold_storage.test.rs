@@ -65,13 +65,30 @@ fn a_folder_outside_the_checkout_has_no_baseline_dir() {
 // tests below sets is theirs alone.
 
 #[test]
-fn the_checkout_default_is_the_catalog_root_parent() {
+fn the_default_is_beside_the_catalog_checkout() {
     unsafe { std::env::remove_var(COLD_STORAGE_DIR_ENV) };
-    let cold = ColdStorage::for_catalog(Path::new("/repo/test-cases"));
+    let cold = ColdStorage::for_catalog(Path::new("/repo/test-suites/test-cases"));
     assert_eq!(cold.root(), Path::new("/repo/cold-storage"));
     assert_eq!(
+        cold.validation_baseline_dir(Path::new(
+            "/repo/test-suites/test-cases/end-to-end/easy/carom/v2.0.0"
+        )),
+        Some(PathBuf::from(
+            "/repo/cold-storage/test-cases/end-to-end/easy/carom/v2.0.0/validation-baseline"
+        )),
+    );
+    // A catalog named from inside the checkout, as `tcab` run there names it.
+    assert_eq!(
         ColdStorage::for_catalog(Path::new("test-cases")).root(),
+        Path::new("../cold-storage")
+    );
+    assert_eq!(
+        ColdStorage::for_checkout("test-suites").root(),
         Path::new("cold-storage")
+    );
+    assert_eq!(
+        ColdStorage::for_checkout(".").root(),
+        Path::new("./../cold-storage")
     );
 }
 
@@ -89,7 +106,7 @@ fn the_environment_overrides_the_root() {
 
     unsafe { std::env::set_var(COLD_STORAGE_DIR_ENV, "") };
     assert_eq!(
-        ColdStorage::for_checkout("/repo").root(),
+        ColdStorage::for_checkout("/repo/test-suites").root(),
         Path::new("/repo/cold-storage")
     );
 }
