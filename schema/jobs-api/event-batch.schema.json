@@ -1,0 +1,996 @@
+{
+  "$defs": {
+    "GgAgentStatus": {
+      "description": "The lifecycle status of an agent in the [subagent tree](https://docs.testcabinet.ai/gg/subagents/),\nreported by an [`AgentStatus`](GgTelemetryKind::AgentStatus) transition so the console can\ncolour each node of the live tree (running vs waiting) and mark it done or failed.\n\nAn agent is [`Running`](Self::Running) while it drives its turn loop, [`Blocked`](Self::Blocked)\nwhile it has **freed its running slot to wait on its subagents** (the scheduler's\nblocked-frees-slot state — distinct from merely queuing for a slot), and terminally either\n[`Done`](Self::Done) (its loop ended normally) or [`Failed`](Self::Failed) (its loop ended in a\nmodel error). Like [`AgentSpawned`](GgTelemetryKind::AgentSpawned), the agent's identity rides\non the event's own [`agent_id`](GgTelemetryEvent::agent_id), so the payload carries only the\nstatus.",
+      "oneOf": [
+        {
+          "const": "running",
+          "description": "The agent is actively driving its turn loop (holds a running slot).",
+          "type": "string"
+        },
+        {
+          "const": "blocked",
+          "description": "The agent has freed its running slot and is waiting on one or more of its subagents to\nreturn (the scheduler's blocked-with-a-wait-condition state).",
+          "type": "string"
+        },
+        {
+          "const": "done",
+          "description": "The agent's turn loop ended normally (completed, exhausted, or timed out).",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "The agent's turn loop ended in a model error.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgCallFailure": {
+      "description": "Why one call failed, in the class the caller branches on — the wire mirror of gg's own\n`ToolFailure`, and of the membrane's `error-code`.\n\nIt is carried by whichever of the two surfaces' closing records the call has: the\n[`ToolResult`](GgTelemetryKind::ToolResult) a tool-calling agent's dispatch closes with, or the\n[`ApiResult`](GgTelemetryKind::ApiResult) a responses-as-code agent's call closes with. **A call\nhas exactly one of them**, because an agent has exactly one surface (see\n[`ApiCall`](GgTelemetryKind::ApiCall)) — so the class is spelled on both types rather than on a\nshared one, and a cross-surface count of a failure class is a sum over two disjoint sets rather\nthan a join over one.\n\nWithout this, a failed call recorded nothing at all about *why*: the class was computed where\nthe failure was raised, handed to the program to branch on, and then dropped at the telemetry\nseam. A model fighting the same `not-found` forty times is among the most actionable facts a run\nhas, and it was not in the record.\n\n# Its spelling is kebab-case, on purpose\n\nEvery other enum in this module is snake_case. This one is `\"invalid-argument\"`, because the\nclass is *already* spelled that way in the three places a reader meets it — gg's own\n`ToolFailure` serde, the membrane's WIT `error-code`, and the `code` field of the `ApiError` a\nprogram catches. One deviation from this module's convention is a smaller cost than three\nspellings of one fact.",
+      "oneOf": [
+        {
+          "const": "invalid-argument",
+          "description": "The arguments were malformed, ill-typed, or out of range — including a path that is absolute\nor climbs out of the workspace.",
+          "type": "string"
+        },
+        {
+          "const": "not-found",
+          "description": "The named file, skill, memory, task, epic, issue, subagent, stored program or documentation\nentry does not exist. A *model slot* is not one of them: a slot is launch configuration, and\nan agent name a run does not declare is `invalid-argument`.",
+          "type": "string"
+        },
+        {
+          "const": "conflict",
+          "description": "Well-formed, but in conflict with the current state: an ambiguous edit, a dependency cycle,\na duplicate id, a subagent that already returned.",
+          "type": "string"
+        },
+        {
+          "const": "refused",
+          "description": "gg refused the call: a memory tool reached while this agent holds its memories read-only, a\ncall a pending compaction does not admit, a session that already ended (or was already\nhanded on) this turn, or a [hook](GgHook) that blocked it. Every one of those is gg\ndeclining a call it *could* have served, on a rule about this agent's state; a ceiling the\ncall ran into is `limit-exceeded` instead, and the delegation depth cap in particular is a\nceiling rather than a refusal.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "The call exists but this run's capability set does not offer it. On the API surface this is\nthe membrane's backstop refusing a name a program reached anyway.",
+          "type": "string"
+        },
+        {
+          "const": "limit-exceeded",
+          "description": "A gg-side ceiling was hit: a shell timeout, a memory/task/board cap, the delegation depth\ncap, one of the view caps a program spends, or the run's wall-clock budget running out\nmid-program. The depth cap belongs here rather than under `refused` because the request was\nwell-formed and gg had no objection to it: the run simply has no room left below this\nagent, which is a quantity and not a rule.",
+          "type": "string"
+        },
+        {
+          "const": "io-error",
+          "description": "The underlying I/O or process failed.",
+          "type": "string"
+        },
+        {
+          "const": "other",
+          "description": "The failure was not classified. Raised outside a tool implementation — the loop's own bridge\nand degradation paths — where there is no tool vocabulary to draw a class from. Recorded as\nits own value rather than as an absent one, so \"this call failed\" and \"this call failed and\nnobody said why\" stay distinguishable.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgErrorSummary": {
+      "description": "The run's **error rollup**: how many of its turns failed, how badly they clustered, and how.\n\nFolded from the [`TurnOutcome`](GgTelemetryKind::TurnOutcome) events the run emitted — one per\nturn, on every agent — so [`turns`](Self::turns) is both this rollup's denominator and a count\nof the model calls the run actually made. Numerator and denominator come from the same event and\ntherefore cannot drift.\n\nThis exists because gg already *judges* every turn, the same judgement the\n[error ceilings](GgRunLimits) are enforced on. Without the rollup a run that failed a third of\nits turns and finished anyway would be, in the durable record, indistinguishable from one that\nnever failed a turn.\n\n# No percentage is stored\n\n[`errors`](Self::errors) over [`turns`](Self::turns) is the error rate; it is deliberately not\nrecorded as a third field. A stored percentage is a figure that can disagree with its own\ndenominator — after a rounding change, a partially-recorded run, or a reader that sums two runs'\nrates — and the one thing a reader must be able to trust here is that the numbers add up.\n\n# What this rollup deliberately does not count\n\n- **Fatal turns.** A failure of gg's own machinery ends the session on the first occurrence and\n  is never charged to the model's error budget, exactly as the ceilings never observe one.\n  `turns` still counts it, so the accounting stays whole.\n- **A tool call that failed inside an otherwise successful program**, in [`errors`](Self::errors)\n  or in any per-kind or per-type counter. The program handled it, which is the entire point of\n  the typed tool surface, and charging it to the model's error budget would make the one\n  capability that *expects* failures the one that cannot survive them. It is counted — see\n  [`tool_failures`](Self::tool_failures), which is a rollup of calls, not of turns — because a\n  model fighting the same `not-found` forty times is among the most actionable facts a run has.\n- **Per-agent attribution.** These are run-wide totals; the per-agent breakdown lives on the\n  stream, where each `TurnOutcome` rides on its own agent's id.",
+      "properties": {
+        "byType": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "The same errors split by their **specific** [type](GgTurnErrorType) rather than by base kind\n— the breakdown a *\"top error types\"* ranking is built from, keyed by\n[`GgTurnErrorType::wire_id`].\n\nTwo invariants hold: it sums to [`errors`](Self::errors), and regrouping it by\n[`GgTurnErrorType::kind`] reproduces the five named counters above exactly.\nThe named counters stay because persisted records, stored queries and the console's\nside-by-side split all read them; this joins them rather than replacing them.\n\n# Why a string key rather than the enum\n\nA map keyed by `GgTurnErrorType` would fail to deserialize *the whole summary* the first\ntime a newer gg wrote a type an older backend or console had never heard of — a run recorded\ntoday must still read back tomorrow, which is exactly what an open breakdown is for. With a\nstring key an unknown type degrades to one unlabelled row in a ranking instead. The\ncompile-time totality this codebase normally insists on is not lost, only moved: the\nproducing side is the enum, and the generated label table is total over it, so a type cannot\nbe added without being labelled.\n\nEmpty — and omitted from the wire — for a run with no errors, and only for one: it sums to\n[`errors`](Self::errors), so an empty map and a zero there are the same statement.",
+          "type": "object"
+        },
+        "errors": {
+          "description": "Turns whose outcome was an [error](GgTurnOutcome::Error). At most [`turns`](Self::turns), and\nexactly the sum of the per-kind counters below.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loopAbortChars": {
+          "description": "Characters of generated output across every reply [`loop_aborts`](Self::loop_aborts) counts\n— the companion of [`loop_abort_words`](Self::loop_abort_words), and the finer of the two\nmeasures, since a reply's final partial word is never counted as a word.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loopAbortWords": {
+          "description": "Words of generated output across every reply [`loop_aborts`](Self::loop_aborts) counts, and\nthe characters of the same output beside it — the **size** of what was thrown away, where\nthe count beside them is only how often.\n\nThe units are the ones gg measured itself, as the replies streamed. There is deliberately no\ntoken count and no price here: gg's [cost](crate::metrics::Cost) and\n[tokens](crate::metrics::TokenCounts) come from the provider's usage payload, which arrives\nat the end of a stream an abandoned reply never reached, so any figure in those units would\nbe an estimate published where every neighbouring figure is a measurement.\n\nThis output is charged to the provider bill. Its price is read back at session end from\nOpenRouter's generation endpoint into the run's [total](GgSessionSummary::cost) and never\nits [work](GgSessionSummary::work_cost), since the reply produced no program and no tool\ncall. A reply the lookup could not price is counted in\n[`GgSessionSummary::loop_abort_unpriced`].",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loopAborts": {
+          "description": "Responses discarded mid-stream by [loop detection](GgLoopDetection). **Not** an error turn —\na discarded attempt is retried, and the turn is judged on what the retry produced — and\ncounted here because it is money and wall-clock spent on nothing, which is the cost the\ncapability exists to bound and the figure that says whether arming it was worth it.\n\nAlways `0` for a run whose agents all left loop detection disarmed, which is the default.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxConsecutive": {
+          "description": "The longest **consecutive-error run any single agent reached** — the peak of the same\ncounter [`max_consecutive_errors`](GgRunLimits::max_consecutive_errors) is enforced on.\n\nA maximum over agents rather than a run-wide streak: the counter is per agent (turns from\ntwo agents interleave arbitrarily on a parallel run, so a run-wide streak would be an\nartefact of scheduling), which is why each `TurnOutcome` event carries its agent's running\ncount rather than leaving this to be re-derived here.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missingCompletion": {
+          "description": "Errors of kind [`missing_completion`](GgTurnErrorKind::MissingCompletion).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "modelApi": {
+          "description": "Errors of kind [`model_api`](GgTurnErrorKind::ModelApi) — including a reply that\n[looped](GgLoopDetection) on every attempt.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "programFault": {
+          "description": "Errors of kind [`program_fault`](GgTurnErrorKind::ProgramFault).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sandboxLimit": {
+          "description": "Errors of kind [`sandbox_limit`](GgTurnErrorKind::SandboxLimit).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "toolFailures": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "**Calls** that failed, by [failure class](GgCallFailure) — a different population from\neverything above, which counts *turns*.\n\nFolded from the [`ToolResult`](GgTelemetryKind::ToolResult) events the run emitted, so it\ncounts every failed tool dispatch in either execution mode, whether or not the program that\nmade it caught the failure and carried on. Keyed by [`GgCallFailure::wire_id`], and open for\nthe reason [`by_type`](Self::by_type) is.\n\nIt counts **dispatches**, so a [responses-as-code](CAPABILITY_RESPONSES_AS_CODE) call that\nnever reached a tool is not here: a carve-out no tool backs, and a call the membrane refused\nbefore dispatch, have an [`ApiResult`](GgTelemetryKind::ApiResult) carrying their class and\nno `ToolResult` at all. Those are on the stream and a console folds them from there; they\nare deliberately not summed into this map, because a rollup whose population is \"some of one\nsurface plus some of another\" is a number nobody can check.",
+          "type": "object"
+        },
+        "transpile": {
+          "description": "Errors of kind [`transpile`](GgTurnErrorKind::Transpile).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "turns": {
+          "description": "Turns recorded across every agent, whatever their outcome — the denominator every rate here\nis read against, and one per model call the run made.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "turns",
+        "errors",
+        "maxConsecutive",
+        "modelApi",
+        "transpile",
+        "programFault",
+        "sandboxLimit",
+        "missingCompletion",
+        "loopAborts",
+        "loopAbortWords",
+        "loopAbortChars"
+      ],
+      "type": "object"
+    },
+    "GgLoopDetection": {
+      "additionalProperties": false,
+      "description": "Whether one [agent](GgAgentConfig::loop_detection) has gg watch its replies for a **generation\nloop**, and the knobs of the detector if so.\n\nSome models, on some turns, stop producing a reply and start producing a *period*: the same\nshort fragment (`void 0;`, one line of a table, one call) emitted thousands of times until the\nprovider's output cap stops it. The reply is paid for in full, takes minutes to arrive, is\nuseless as a turn, and — worst — enters the context window, where it makes the next turn more\nlikely to do the same thing.\n\nArming this is what switches that agent's model transport to **streaming**: the detector reads\nthe reply as it arrives and abandons the request the moment the repetition is unmistakable,\nwhich is the only point at which any of the loss above is still avoidable. An agent that leaves\nit off keeps the non-streaming transport byte for byte, so this is an opt-in change of transport\nas much as it is a change of policy — which is exactly why it is off by default.\n\nIt is a **per-agent** (and therefore per-model) lever, like the\n[prompt-cache lifetime](GgPromptCacheTtl): looping is a property of a model, and a run whose\nroot runs on a model that loops has no reason to pay the streaming path for a reviewer that\ndoes not. It is deliberately **not** a [responses-as-code](CAPABILITY_RESPONSES_AS_CODE)\nparam — a tool-calling model loops in exactly the same way, inside a tool call's arguments.\n\n**An armed detector writes all five knobs.** What the rule trips on is the whole set of them\ntogether — a lookback, a frequency, a breadth, a persistence and a backstop — so a detector\narmed on figures nobody chose measures gg rather than the model, and an armed detector missing\nany of them refuses the launch. An **unarmed** one owes none of them, and a knob written on one\nis still read and still judged as written, which is what keeps the armed and unarmed arms of one\ncomparison the same document with one switch moved. A knob **set** to a value that cannot bound\nanything — a zero window, a zero threshold, a demand for no offenders — is a launch **failure**,\non the same terms as [`GgRunLimits`].\n\nThe one exception is a declaration gg arms exactly as written and which is merely provably\ninert: [`min_offenders`](Self::min_offenders) above\n[`window_words`](Self::window_words) can never saturate, but both numbers are honoured to the\nletter, so it warns rather than refusing.\n\nSee the [loop-detection](https://docs.testcabinet.ai/gg/loop-detection/) page for the algorithm\nthese knobs parameterise.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Whether the detector runs for this agent at all. `false`, which is what a profile that says\nnothing about loop detection reads as, leaves the agent on gg's ordinary non-streaming\ntransport and no reply is ever discarded; `true` arms the\ndetector **and** switches the transport to streaming, because a detector that can only read a\ncompleted reply has already let every cost it exists to avoid be paid.",
+          "type": "boolean"
+        },
+        "maxResponseChars": {
+          "description": "A hard ceiling, in characters, on a single reply — the backstop for a runaway that is not\n*repetitive* enough to trip the window rule. Written and required on the terms\n[`window_words`](Self::window_words) is; `0` turns the backstop off and leaves only the\nrepetition rule, which is a declaration rather than an omission.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "minOffenders": {
+          "description": "`M` — how many **distinct** offenders must be present at once for the window to count as\n*saturated*. Written and required on the terms [`window_words`](Self::window_words) is.\n\nMore than one is worth asking for because a single very common token (`the`, `0,`, a brace)\nis ordinary; a loop repeats a whole fragment, so it saturates several words together.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "minSaturatedRun": {
+          "description": "`R` — how many consecutive words must arrive while the window stays saturated before gg\nabandons the reply. Written and required on the terms\n[`window_words`](Self::window_words) is.\n\nThis is the term that separates a loop from legitimately repetitive *content*: a tilemap\nliteral or a long table saturates the window and then **ends**, while a loop saturates it and\nnever stops. Requiring the saturation to be sustained is what lets the detector be aggressive\nwithout discarding a reply that was merely dense. `0` means \"trip as soon as the window is\nsaturated\" — the unmodified frequency rule, and a deliberate choice rather than a mistake.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "repeatThreshold": {
+          "description": "`P` — how many times a single word may occur within the [window](Self::window_words) before\nit counts as an *offender*. Written and required on the terms\n[`window_words`](Self::window_words) is.\n\nStrictly more than `P` occurrences makes an offender, so raising it tolerates more legitimate\nrepetition (a dense data literal, a long table) at the cost of catching a loop later.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "windowWords": {
+          "description": "`N` — how many of the most recent words the detector looks back over when deciding whether a\nreply has become repetitive, and the minimum sample: the repetition rule cannot fire until\nthis many words have arrived.\n\nOne of the five knobs an **armed** detector writes. What the rule trips on is the five of\nthem together, so a detector armed on figures nobody chose would measure gg rather than the\nmodel, and an armed detector missing any of them refuses the launch. An unarmed detector owes\nnone of them, and a knob written on one is still read and still judged as written.\n\nA \"word\" is a whitespace-separated run of characters, plus a fixed-width slice whenever a run\nexceeds gg's internal cap — which is what makes a whitespace-free loop (`a();a();a();…`)\ndetectable at all rather than one unbounded word.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "GgProviderCandidate": {
+      "description": "One provider a model may run on, and the quantization that endpoint serves.\n\nA [`GgInvocation::model_providers`] entry is an ordered list of these: the order a run tries\nthem in, and a one-entry list is a pin. Every request names one of them as OpenRouter's\n`provider.only` and `provider.quantizations`, with fallbacks refused.",
+      "properties": {
+        "provider": {
+          "description": "The provider, spelled as OpenRouter's endpoints listing spells its `provider_name`\n(`Z.AI`, `DeepInfra`).",
+          "type": "string"
+        },
+        "quantization": {
+          "description": "The quantization the provider's endpoint declares (`fp8`, `bf16`, or `unknown` for a\nprovider the catalog entry accepts despite it).",
+          "type": "string"
+        }
+      },
+      "required": ["provider", "quantization"],
+      "type": "object"
+    },
+    "GgProviderFault": {
+      "description": "A fault gg holds against one provider within a run: what a\n[`ProviderFault`](GgTelemetryKind::ProviderFault) records and what a\n[`ProviderSwitch`](GgTelemetryKind::ProviderSwitch) names as its cause.",
+      "oneOf": [
+        {
+          "const": "failed_call",
+          "description": "The retry schedule was spent on `429`, `5xx`, transport failures or stalls.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "OpenRouter answered `404`: the account's settings exclude the provider's endpoint, so no\nretry can succeed.",
+          "type": "string"
+        },
+        {
+          "const": "stall",
+          "description": "A stream went [`modelStreamIdleSecs`](GgRunLimits::model_stream_idle_secs) without a delta.",
+          "type": "string"
+        },
+        {
+          "const": "cache_miss",
+          "description": "A reply read far less from the cache than the agent's previous request left there.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgProviderStat": {
+      "description": "One `(provider, model)` health slice in a [`GgSessionSummary`] — which upstream provider\nserved a run's model calls, and how the calls it served went. Folded from the run's own\nstream: the [`Usage`](GgTelemetryKind::Usage) deltas contribute the calls with their tokens\nand cost, the [`ResponseRejected`](GgTelemetryKind::ResponseRejected) events the length-capped\nreplies, and the [`TurnOutcome`](GgTelemetryKind::TurnOutcome) events the per-turn judgement,\neach attributed to the provider its own call named.\n\nTwo invariants hold across a summary's slices: their [`turns`](Self::turns) sum to the\n[error rollup](GgErrorSummary::turns)'s denominator, and within a slice `turns` minus\n[`working`](Self::working) minus its error count is its fatal turns.",
+      "properties": {
+        "cacheMisses": {
+          "description": "Replies this provider served that were an unexpected cache miss, folded from the\n[`CacheMiss`](GgProviderFault::CacheMiss) faults against it. `0`, and omitted, for a\nprovider that never missed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "calls": {
+          "description": "Model calls folded from the [`Usage`](GgTelemetryKind::Usage) deltas — the calls that\nreported usage. A call that reported neither tokens nor cost emits no delta and reaches\nonly the turn figures below.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "$ref": "https://docs.testcabinet.ai/schema/core/run-record.schema.json#/$defs/CostMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Their cost, summed, when any of them reported one."
+        },
+        "errors": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "The errored turns among them, keyed by [`GgTurnErrorType::wire_id`] — the same open,\nstring-keyed breakdown [`GgErrorSummary::by_type`] is, and omitted when empty on the same\nterms.",
+          "type": "object"
+        },
+        "modelId": {
+          "description": "The model this slice's agent was running on, as the agent's own\n[`Usage`](GgTelemetryKind::Usage) deltas named it. `None` for a turn or rejection recorded\nbefore the agent's first usage delta named one.",
+          "type": ["string", "null"]
+        },
+        "provider": {
+          "description": "OpenRouter's name for the upstream provider that served this slice's calls. `None` for the\nslice of calls that named none — a gateway that stamps no provider, or a turn whose call\nproduced no reply to name one (a model timeout).",
+          "type": ["string", "null"]
+        },
+        "rejected": {
+          "description": "Replies gg [rejected whole](GgRejectedResponses) — the length-capped ones — that this\nslice's provider served. `0`, and omitted, for the ordinary slice with none.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stalls": {
+          "description": "Requests sent to this provider whose stream went\n[`modelStreamIdleSecs`](GgRunLimits::model_stream_idle_secs) without a delta, folded from\nthe [`Stall`](GgProviderFault::Stall) faults against it. `0`, and omitted, for a provider\nthat never stalled.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokens": {
+          "$ref": "https://docs.testcabinet.ai/schema/core/run-record.schema.json#/$defs/TokenMetrics",
+          "description": "The tokens those calls reported, summed in the shared [`TokenCounts`] units."
+        },
+        "turns": {
+          "description": "Turns attributed to this slice: each [`TurnOutcome`](GgTelemetryKind::TurnOutcome) lands on\nthe provider its own call named, or on the providerless slice when it named none.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "working": {
+          "description": "The turns among them that worked — a [progressed](GgTurnOutcome::Progressed) or\n[finished](GgTurnOutcome::Finished) outcome.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": ["calls", "tokens", "turns", "working"],
+      "type": "object"
+    },
+    "GgRejectedResponses": {
+      "description": "The run's **rejected-reply** rollup: how many model replies gg refused to use (today, exactly\nthe length-capped ones — see [`GgTelemetryKind::ResponseRejected`]), and the spend they burned.\n\nThis bucket exists so the exclusion is visible rather than silent. A rejected reply's usage\nnever counts as the run's **work** — a degenerate generation must not make a run's work look\nexpensive or long — but it is in the run's [total cost](GgSessionSummary::cost) like every\nother request's, and \"how often does this model cap out, and what did those attempts cost?\" is\na question the owner asks of the durable record. Folded from the\n[`ResponseRejected`](GgTelemetryKind::ResponseRejected) events the run emitted.",
+      "properties": {
+        "cost": {
+          "anyOf": [
+            {
+              "$ref": "https://docs.testcabinet.ai/schema/core/run-record.schema.json#/$defs/CostMetrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Their cost, summed, when the provider reported any — in the run's\n[total cost](GgSessionSummary::cost), never its\n[work cost](GgSessionSummary::work_cost)."
+        },
+        "count": {
+          "description": "How many replies were rejected.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokens": {
+          "$ref": "https://docs.testcabinet.ai/schema/core/run-record.schema.json#/$defs/TokenMetrics",
+          "description": "The tokens the provider billed for them, summed — absent from the run's\n[work](GgSessionSummary::work_cost) figures by design, and inside its\n[total](GgSessionSummary::cost) ones like every other request's."
+        }
+      },
+      "required": ["count", "tokens"],
+      "type": "object"
+    },
+    "GgTurnErrorKind": {
+      "description": "Why a turn was an [error](GgTurnOutcome::Error), at the **base** level of the two-level error\ntaxonomy — the wire mirror of gg's own `TurnErrorKind`.\n\nThis is the coarse bucket: *whose layer* failed. The **specific** type under it —\nauthentication versus a rejected request, a syntax error versus an unsupported feature, an\nuncaught tool failure versus an uncaught throw — is [`GgTurnErrorType`], carried beside this on\nthe same event and derivable back to this by [`GgTurnErrorType::kind`]. Read this to compare\nruns at a glance and to reason about ceilings; read the type to say what actually went wrong.\n\nThree of the five — [`Transpile`](Self::Transpile), [`ProgramFault`](Self::ProgramFault) and\n[`SandboxLimit`](Self::SandboxLimit) — are\n[responses-as-code](CAPABILITY_RESPONSES_AS_CODE) shapes, and that\nasymmetry is real rather than an oversight: a tool-calling turn whose requested calls are all\ndispatched and answered cannot declare work that is then cut short.\n\n# There is deliberately no `response_loop` kind *here*\n\nA reply abandoned by [loop detection](GgLoopDetection) is **not an error turn**: the attempt is\ndiscarded and the request retried, and the turn is judged on whatever the retry produced. A loop\nthat survives every attempt does reach the turn loop, but it arrives as a model-client failure\nafter that client exhausted its own retry budget — so it belongs in [`ModelApi`](Self::ModelApi)\nfor every ceiling, every rate and every side-by-side comparison, which is what this level is\nfor.\n\nWhat it is *not* is indistinguishable. gg knows exactly which of the two happened, and now\npublishes it: a surviving loop is\n[`ModelResponseLoop`](GgTurnErrorType::ModelResponseLoop) and an exhausted retry is\n[`ModelRetryExhausted`](GgTurnErrorType::ModelRetryExhausted), under the one base kind. That is\nthe whole reason the taxonomy has two levels — the distinction was being computed and thrown\naway. The discarded attempts are *additionally* counted in their own right, on the\n[`loop_aborts`](GgTelemetryKind::TurnOutcome::loop_aborts) field of the same event and in\n[`GgErrorSummary::loop_aborts`], with the size of the output they threw away beside them,\nbecause they are money spent on nothing rather than a turn that failed.",
+      "oneOf": [
+        {
+          "const": "model_api",
+          "description": "The model call itself failed, after the client had already exhausted its own retry/backoff\nbudget. No turn happened at all. Also where a reply that\n[looped](GgLoopDetection) on every attempt lands.",
+          "type": "string"
+        },
+        {
+          "const": "transpile",
+          "description": "The program could not be prepared for its guest — a syntax error, a module feature the\nsandbox has no implementation of, or a program past the size/nesting guards. Nothing ran.\n\nThe variant keeps its name (and its wire value, `transpile`) from when every program was\nTypeScript and preparing one meant stripping its types: the value is contract-visible, and\nrenaming it would break every reader of persisted run data to describe the same failure.",
+          "type": "string"
+        },
+        {
+          "const": "program_fault",
+          "description": "The program ran and threw an uncaught fault, so every statement after the throw never ran and\nthe model must re-declare the remainder.",
+          "type": "string"
+        },
+        {
+          "const": "sandbox_limit",
+          "description": "The sandbox stopped the program at a ceiling — its execution timeout or memory — or the guest\ntrapped. The program ran and its landed calls stand, but the work it declared was cut short.",
+          "type": "string"
+        },
+        {
+          "const": "missing_completion",
+          "description": "A tool-calling turn ended with no tool call. How an agent declares it is done is not\nconfigurable: every agent ends its session with an explicit, typed call, so a text-only\nreply is not a completion but a failure to end the run the one way gg allows. Counted as an\nerror so a model that keeps replying in prose trips the error ceilings instead of running to\nits turn budget.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgTurnErrorType": {
+      "description": "Why a turn was an [error](GgTurnOutcome::Error), **specifically** — the leaf level of the\ntwo-level error taxonomy, under the base [kind](GgTurnErrorKind) each variant reports through\n[`kind`](Self::kind).\n\n# Why two levels rather than one wider enum\n\nThe base kind answers \"which layer failed?\", which is what an error ceiling acts on and what a\ncross-run comparison groups by; it is a small closed set that persisted run data, saved\nqueries and stored dashboards already key on. This answers \"what actually went wrong?\", which is\nwhat a person reading one run needs and what a *\"top error types\"* ranking has to be able to\ndistinguish — a run that failed twelve turns on a rejected credential and a run that failed\ntwelve turns on a syntax error are the same `model_api`/`transpile` story only at the coarse\nlevel. Adding these as more variants of the base would have widened a wire value every stored\nrecord and every ceiling reads; adding them beneath it costs the base nothing.\n\n# Every variant names a real producer\n\nA bucket that is permanently zero in every console is a defect, so each variant below documents\nthe exact site that raises it. The set is exactly the distinctions gg makes internally: six\nshapes of `ModelError`, four of `PrepareError`, three of the sandbox's own ceilings, the three\nclasses the guest types an uncaught throw with over WIT, and the two structurally different ways\na turn can end without declaring work.\n\n# Names carry their base\n\nEvery variant is prefixed with its base's noun (`model_`, `transpile_`, `program_`, `sandbox_`,\n`missing_completion_`) because these are ranked in one flat list, one row per type,\nwhere a bare `syntax` or `timeout` would not say which layer it came from.\n\n[`ModelRejected`](Self::ModelRejected) is deliberately *not* named `fatal`, even though gg's\n`ModelError::Fatal` is what raises it: `fatal` already means [gg's own machinery\nbroke](GgTurnOutcome::Fatal) on the field immediately beside this one, and two meanings of one\nword on adjacent fields of one event is a misreading waiting to happen.",
+      "oneOf": [
+        {
+          "const": "model_auth",
+          "description": "The run's **credential** was refused: no key in the environment, or a `401`/`403` from the\nprovider. No model ever ran, which is why gg ends such a run as a harness error rather than\nscoring it against the model.",
+          "type": "string"
+        },
+        {
+          "const": "model_rejected",
+          "description": "The provider rejected the request for some other non-retryable reason — a `4xx` that is not\nan auth failure (a context length the route will not take, an unroutable model, a malformed\nrequest).",
+          "type": "string"
+        },
+        {
+          "const": "model_retry_exhausted",
+          "description": "The provider never served the request: the client retried a transient condition (`429`,\n`5xx`, a transport error) to its policy and every attempt failed.",
+          "type": "string"
+        },
+        {
+          "const": "model_response_loop",
+          "description": "The provider served the request and every answer was a\n[generation loop](GgLoopDetection), so the client discarded all of them and gave up. The\nrequest was fine and the provider was up, which is precisely why this must not read as\n[`ModelRetryExhausted`](Self::ModelRetryExhausted).\n\nAnswered as an error turn rather than an ending: the discarded replies never enter the\ncontext, the turn spends the [error ceilings](GgRunLimits) like any other failed turn, and\nthe loop asks the same question again — so a model that loops once loses a turn rather than\nthe run, and the run ends only when the ceilings say it should.",
+          "type": "string"
+        },
+        {
+          "const": "model_vision_unsupported",
+          "description": "The request carried an image the model cannot accept, and gg had nothing left to strip —\neither the pictures were not gg's to remove, or the retry against the stripped conversation\nwas refused too. (When there *is* something to strip, gg drops the images and re-runs the\nturn, so the ordinary case never reaches the turn seam at all.)",
+          "type": "string"
+        },
+        {
+          "const": "model_parse",
+          "description": "A `2xx` response could not be read into a reply — an unparseable envelope, an error object\nin a success status, or tool call arguments that are not JSON. Answered as an error turn:\nnothing entered the context, the turn spends the [error ceilings](GgRunLimits), and the\nloop asks again, so a reply gg could not read costs the model a turn rather than the run.\n(A reply that was no tool call at all parses fine and keeps its meaning through the\n[`missing_completion`](Self::MissingCompletionNoCall) types instead.)",
+          "type": "string"
+        },
+        {
+          "const": "model_provider_mismatch",
+          "description": "The gateway served the call from a provider other than the one the launch pinned. The\nrequest was well-formed and the provider answered it; the answer is unusable because the\ncost recorded from it on would be on a different price basis. gg ends the run as a harness\nfailure rather than scoring it against the model.",
+          "type": "string"
+        },
+        {
+          "const": "model_timeout",
+          "description": "The model call ran into the run's\n[**per-call ceiling**](GgRunLimits::model_call_timeout_secs) without producing a reply — a\nstalled provider, not a refusal. Answered as an error turn like\n[`ModelParse`](Self::ModelParse) and [`ModelResponseLoop`](Self::ModelResponseLoop): the\nturn is recorded as this error and the loop asks again, so a stalled endpoint costs the\nrun one bounded error turn per stall and the run ends only when the\n[error ceilings](GgRunLimits) say it should.",
+          "type": "string"
+        },
+        {
+          "const": "model_length_capped",
+          "description": "The reply hit the **provider's output cap** (`finish_reason: length`) and was rejected\nwhole: a length-capped reply is presumed a degenerate generation, so it never enters the\ncontext, its usage is kept out of the run's work cost (it fed no work, and is tallied on\n[`GgSessionSummary::rejected_responses`] and in the run's\n[total cost](GgSessionSummary::cost) instead), and the turn is retried on the same\nterms as [`ModelTimeout`](Self::ModelTimeout) — recorded as this error, bounded by the\nerror ceilings.",
+          "type": "string"
+        },
+        {
+          "const": "transpile_syntax",
+          "description": "The program is not valid source in its [language](GgProgramLanguage) — the parser's own\ndiagnostics. Nothing ran.",
+          "type": "string"
+        },
+        {
+          "const": "transpile_compile",
+          "description": "The language's **compiler read the whole program and rejected it** — a type error, a borrow\nerror, a name that does not resolve, an interface a class does not satisfy. The model is\nhanded the compiler's own diagnostics and writes another program; nothing ran.\n\nKept apart from [`TranspileSyntax`](Self::TranspileSyntax) because the two say opposite\nthings about the model. A syntax error is a typo. A compile error is a program the model\nwrote whole and coherently and got *wrong about the surface it was writing against* — which\nis the most informative thing a checked language's arm can report about the SDK it was\nhanded, and is meaningless if it is pooled with typos.\n\nOnly a language whose preparation type-checks can produce it, so it is absent from every run\nof a language that does not — which is a fact about the arm, not a gap.",
+          "type": "string"
+        },
+        {
+          "const": "transpile_unsupported",
+          "description": "The program asks for something the sandbox will not run it with — a module import where\nthere is no loader, an `await` where there is no event loop, a nesting depth past the\nparser's guard.",
+          "type": "string"
+        },
+        {
+          "const": "program_api_error",
+          "description": "The program ran and a **failed call it did not catch** ended it: a call the membrane\nserviced and the tool behind it rejected, or refused for any reason other than the run not\noffering it. The single most actionable program fault there is — it says the model is\nfighting the API rather than mis-writing it — and it was previously indistinguishable from\nany other throw.",
+          "type": "string"
+        },
+        {
+          "const": "program_unknown_name",
+          "description": "**The program reached for something this run does not offer it**, and the throw ended the\nturn: a name that was never in the program's scope, or a call the membrane refused\n`unavailable` because this agent's capability set, [allowlist](GgAgentConfig::operations),\nrole or program library does not include it.\n\nThe two are one fact and one recovery — write against the surface you were given — and they\nare folded together on purpose. Which of the two a language *produces* is an accident of how\nits SDK is bound: a guest that builds a scope leaves a withheld name out of it and throws a\nreference error, while a guest that links its SDK as an ordinary library has every name and\ngets a refusal from the host. Left apart, the identical event would be counted under two\ndifferent types depending on the arm, which is a confound a cross-language comparison cannot\ncarry.",
+          "type": "string"
+        },
+        {
+          "const": "program_throw",
+          "description": "The program threw for any other reason: its own `TypeError`, a `throw` it wrote, an\nassertion it failed.",
+          "type": "string"
+        },
+        {
+          "const": "sandbox_timeout",
+          "description": "The sandbox stopped the program at its **execution timeout** — in practice a loop or a\nrecursion that does not terminate, since the ceiling is set far longer than any honest\nprogram needs. Time parked in a bridged call does not count towards it.",
+          "type": "string"
+        },
+        {
+          "const": "sandbox_out_of_memory",
+          "description": "The guest's linear memory grew past its cap and the program was stopped.",
+          "type": "string"
+        },
+        {
+          "const": "sandbox_trap",
+          "description": "The guest trapped for some other reason. The program ran and its landed calls stand.\n\nOn an arm whose program dies the way its runtime kills it rather than reporting a throw to\nthe host, this is also where an ordinary uncaught program failure lands, so a slice over\nthis type — or over the [`SandboxLimit`](GgTurnErrorKind::SandboxLimit) kind above it — is a\ncomparison within one program language and not across them.",
+          "type": "string"
+        },
+        {
+          "const": "missing_completion_no_call",
+          "description": "A tool-calling turn ended with **no tool call** — the model replied in prose where the one\nway to end a session is an explicit, typed call.",
+          "type": "string"
+        },
+        {
+          "const": "missing_completion_compaction",
+          "description": "A turn replied with no tool call while a [compaction](GgTelemetryKind::Compaction) was\npending: the model was told to compact its window and answered with prose instead. A\ndifferent failure from [`MissingCompletionNoCall`](Self::MissingCompletionNoCall) — the\nsession is nowhere near ending, and gg answers it by restating the compaction rather than by\nexplaining how to finish — and it is answered differently, so it is recorded differently.",
+          "type": "string"
+        },
+        {
+          "const": "missing_completion_no_program",
+          "description": "A [responses-as-code](CAPABILITY_RESPONSES_AS_CODE) turn made no `submit_program` call, so\nthe reply carried no program to run — the code-mode counterpart of\n[`MissingCompletionNoCall`](Self::MissingCompletionNoCall), reached only when a provider\nanswers a request that required the call with a reply that does not make it.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgTurnOutcome": {
+      "description": "How one agent turn ended — the wire mirror of gg's own `TurnOutcome`, which is the single\ndefinition of \"was that turn an error?\" the [execution ceilings](GgRunLimits) are enforced on.\n\nCarried on the [`TurnOutcome`](GgTelemetryKind::TurnOutcome) event so the *same* judgement the\nceilings act on is visible on the stream. Without it, \"how error-prone was this configuration?\"\nis only answerable for the runs a ceiling actually stopped, and a run that failed a third of its\nturns and finished anyway is indistinguishable from one that never failed a turn at all.\n\nA closed taxonomy, deliberately: the console labels each value and a study groups by them, so\nthe set is fixed here rather than being a free string. The mapping from gg's enum to this one is\nwritten by hand on the gg side, so adding a variant there is a decision to publish it here.",
+      "oneOf": [
+        {
+          "const": "progressed",
+          "description": "The turn did what its protocol asks: a program that ran to a value (however its individual\ntool calls went), or a tool-calling turn whose requested calls were dispatched and answered.\nThe only outcome that clears an agent's\n[consecutive-error run](GgTelemetryKind::TurnOutcome::consecutive_errors).",
+          "type": "string"
+        },
+        {
+          "const": "finished",
+          "description": "The turn ended the session — a program called `finish`, or a tool-calling turn requested no\ntools. Terminal, and never an error: a session that ends on purpose has not failed.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "The turn's declared work could not be carried out as declared. The\n[kind](GgTelemetryKind::TurnOutcome::error) says how, and this is the outcome the error\nceilings count.",
+          "type": "string"
+        },
+        {
+          "const": "fatal",
+          "description": "gg's own machinery failed, so the session ends on the first occurrence. Recorded rather than\nskipped — so the turn accounting never drifts from the number of model calls the run made —\nand kept **apart** from [`Error`](Self::Error), because charging gg's defects to the model's\nerror budget would corrupt the one figure this event exists to publish.",
+          "type": "string"
+        }
+      ]
+    },
+    "GgUndocumentedCalls": {
+      "description": "**Calls a model wrote without having read what they do** — the measurement of whether a model\nfollows the one discipline [responses-as-code](CAPABILITY_RESPONSES_AS_CODE) discovery is built\non.\n\ngg's prompt names the modules an agent holds and no function inside any of them, so a model\ncannot know a call's signature until it has searched the documentation and opened a\n[documentation view](GgContextSource::DocsView) of the name. A view a program opens arrives in\nthe window on the turn *after* the program that opened it, which is why the prompt states the\ndiscipline as *open a documentation view of each function you intend to call, and write the call\non a later turn*. This counts the calls that broke it: the operation was called while no\ndocumentation view of it stood in the window from an earlier turn.\n\n# It is a measurement and never a gate\n\nNothing is refused, nothing is retried and no [turn outcome](GgTurnOutcome) changes: the program\ncompiled, ran and did its work, so no [error ceiling](GgRunLimits) observes any of this and none\nof it reaches the [error rollup](GgErrorSummary). What it is evidence about is the **model**. A\nmodel that repeatedly calls functions it never looked up is writing signatures from memory, and\na run where that number is large is a run whose model should not be given this surface — which\nis a conclusion nobody could reach from a record that only showed the calls that happened to\ncompile.\n\nIt is a **lower bound**, and deliberately so. A guessed signature that did not compile never\nreaches a call site, so it is counted nowhere here; what is counted is the guess that happened to\nbe right about the shape while still being a guess.\n\n# Why the operations are carried and not only the count\n\nA bare count says a model guessed and not at what. Forty calls of `files.read_file` is a model\nthat never opened the one page it needed; forty different operations once each is a model\nignoring the mechanism outright. Those are different findings with different remedies, and only\nthe breakdown tells them apart.",
+      "properties": {
+        "calls": {
+          "description": "How many such calls were made. Exactly the sum of [`operations`](Self::operations)'s values.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "operations": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "The same calls broken down by **which** operation was called, keyed by gg's own rendered\n[operation id](GgTelemetryKind::ApiCall) (`files.read_file`) rather than by any arm's\nspelling — so eleven language arms' findings are counted under one key.\n\nOpen (a string key) for the reason [`GgErrorSummary::by_type`] is: an operation added to gg's\nvocabulary joins the breakdown without a schema change, and a reader that has never heard of\none degrades to an unlabelled row rather than failing to read the record at all.\n\nEmpty — and omitted from the wire — exactly when [`calls`](Self::calls) is `0`.",
+          "type": "object"
+        }
+      },
+      "required": ["calls"],
+      "type": "object"
+    },
+    "HarnessEvent": {
+      "description": "A single normalized event emitted while a harness runs.\n\nThe common fields (timestamp and optional session ID) are carried alongside\nthe type specific [`EventKind`], which is flattened into the serialized form\nso the type discriminator and its fields sit inline rather than under a\nnested payload.",
+      "oneOf": [
+        {
+          "description": "A plain natural language message emitted by the agent.",
+          "properties": {
+            "message": {
+              "description": "The text the agent emitted.",
+              "type": "string"
+            },
+            "type": {
+              "const": "agent",
+              "type": "string"
+            }
+          },
+          "required": ["type", "message"],
+          "type": "object"
+        },
+        {
+          "description": "The model's internal reasoning (\"thinking\") content, reported by harnesses\nthat expose it as a distinct stream from the agent's visible output. It is\nkept separate from [`Agent`](EventKind::Agent) because reasoning is often\nlong and is a different kind of activity; callers can present it apart from\nthe visible message (the UI collapses it by default).",
+          "properties": {
+            "message": {
+              "description": "The text of the model's reasoning.",
+              "type": "string"
+            },
+            "type": {
+              "const": "reasoning",
+              "type": "string"
+            }
+          },
+          "required": ["type", "message"],
+          "type": "object"
+        },
+        {
+          "description": "A shell command the agent ran.",
+          "properties": {
+            "command": {
+              "description": "The shell command the agent attempted to run.",
+              "type": "string"
+            },
+            "exitCode": {
+              "description": "The process exit code, when known.",
+              "format": "int32",
+              "type": ["integer", "null"]
+            },
+            "isSuccess": {
+              "description": "Whether the command succeeded, when known.",
+              "type": ["boolean", "null"]
+            },
+            "type": {
+              "const": "command",
+              "type": "string"
+            },
+            "workingDirectory": {
+              "description": "The directory the command ran from, when reported.",
+              "type": ["string", "null"]
+            }
+          },
+          "required": ["type", "command"],
+          "type": "object"
+        },
+        {
+          "description": "A file read.",
+          "properties": {
+            "endLine": {
+              "description": "The inclusive end line read, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "isSuccess": {
+              "description": "Whether the read succeeded, when known.",
+              "type": ["boolean", "null"]
+            },
+            "path": {
+              "description": "The file that was read.",
+              "type": "string"
+            },
+            "startLine": {
+              "description": "The inclusive start line read, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "type": {
+              "const": "read",
+              "type": "string"
+            }
+          },
+          "required": ["type", "path"],
+          "type": "object"
+        },
+        {
+          "description": "A file write.",
+          "properties": {
+            "endLine": {
+              "description": "The inclusive end line written, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "isSuccess": {
+              "description": "Whether the write succeeded, when known.",
+              "type": ["boolean", "null"]
+            },
+            "path": {
+              "description": "The file that was written.",
+              "type": "string"
+            },
+            "startLine": {
+              "description": "The inclusive start line written, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "type": {
+              "const": "write",
+              "type": "string"
+            }
+          },
+          "required": ["type", "path"],
+          "type": "object"
+        },
+        {
+          "description": "A filesystem or in-file search.",
+          "properties": {
+            "isSuccess": {
+              "description": "Whether the search completed, when known.",
+              "type": ["boolean", "null"]
+            },
+            "path": {
+              "description": "The scope that was searched, when known.",
+              "type": ["string", "null"]
+            },
+            "query": {
+              "description": "The search pattern, glob, or file name searched for.",
+              "type": "string"
+            },
+            "type": {
+              "const": "search",
+              "type": "string"
+            }
+          },
+          "required": ["type", "query"],
+          "type": "object"
+        },
+        {
+          "description": "A directory listing.",
+          "properties": {
+            "isSuccess": {
+              "description": "Whether the listing completed, when known.",
+              "type": ["boolean", "null"]
+            },
+            "path": {
+              "description": "The directory whose contents were listed, when known.",
+              "type": ["string", "null"]
+            },
+            "type": {
+              "const": "list",
+              "type": "string"
+            }
+          },
+          "required": ["type"],
+          "type": "object"
+        },
+        {
+          "description": "Use of a skill, when the harness distinguishes it from a file read.",
+          "properties": {
+            "endLine": {
+              "description": "The inclusive end line read, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "isSuccess": {
+              "description": "Whether the skill use completed, when known.",
+              "type": ["boolean", "null"]
+            },
+            "path": {
+              "description": "The skill file that was read.",
+              "type": "string"
+            },
+            "skillName": {
+              "description": "The harness provided skill name, when known.",
+              "type": ["string", "null"]
+            },
+            "startLine": {
+              "description": "The inclusive start line read, when known.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": ["integer", "null"]
+            },
+            "type": {
+              "const": "skill",
+              "type": "string"
+            }
+          },
+          "required": ["type", "path"],
+          "type": "object"
+        },
+        {
+          "description": "Subagent orchestration activity.",
+          "properties": {
+            "action": {
+              "$ref": "#/$defs/OrchestrationAction",
+              "description": "The orchestration state the harness reported."
+            },
+            "isSuccess": {
+              "description": "Whether the action completed successfully, when known.",
+              "type": ["boolean", "null"]
+            },
+            "subagentId": {
+              "description": "The harness provided subagent identifier, when known.",
+              "type": ["string", "null"]
+            },
+            "subagentName": {
+              "description": "The harness provided subagent name, when known.",
+              "type": ["string", "null"]
+            },
+            "type": {
+              "const": "orchestration",
+              "type": "string"
+            }
+          },
+          "required": ["type", "action"],
+          "type": "object"
+        },
+        {
+          "description": "An error reported by the harness itself (not an agent caused error).",
+          "properties": {
+            "code": {
+              "description": "A harness provided stable error code, when one exists.",
+              "type": ["string", "null"]
+            },
+            "message": {
+              "description": "A human readable description of the error.",
+              "type": "string"
+            },
+            "type": {
+              "const": "error",
+              "type": "string"
+            }
+          },
+          "required": ["type", "message"],
+          "type": "object"
+        },
+        {
+          "description": "A potential issue reported by the harness.",
+          "properties": {
+            "code": {
+              "description": "A harness provided stable warning code, when one exists.",
+              "type": ["string", "null"]
+            },
+            "message": {
+              "description": "A human readable description of the potential issue.",
+              "type": "string"
+            },
+            "type": {
+              "const": "warning",
+              "type": "string"
+            }
+          },
+          "required": ["type", "message"],
+          "type": "object"
+        },
+        {
+          "description": "A run lifecycle stage reported by the orchestrator itself, rather than\ntranslated from harness output. These mark the setup and teardown steps\nthat bracket a harness session — pulling the image, starting the\ncontainer, installing the harness, preparing the test case, and tearing\ndown — so a caller sees what is happening during steps that can take a\nwhile instead of a silent wait before the harness's first event.",
+          "properties": {
+            "message": {
+              "description": "A human readable description of the stage and its status.",
+              "type": "string"
+            },
+            "stage": {
+              "$ref": "#/$defs/SystemStage",
+              "description": "The setup or teardown stage this event reports on."
+            },
+            "status": {
+              "$ref": "#/$defs/SystemStatus",
+              "description": "Whether the stage is beginning, finished, or failed."
+            },
+            "type": {
+              "const": "system",
+              "type": "string"
+            }
+          },
+          "required": ["type", "stage", "status", "message"],
+          "type": "object"
+        },
+        {
+          "description": "Per-turn token usage a harness reports partway through a run.\n\nHarnesses that report usage incrementally — Pi on each `message_end`,\nKilo/OpenCode on each `step_finish` — emit one of these per turn, carrying\nthat turn's [token counts](crate::metrics::TokenCounts) mapped onto the four\nnormalized classes the *same way* the run-level total is (the shared mapping\nlives in [`crate::harness_registry`], so per-turn and session totals never\ndiverge). It is the non-gg analogue of gg's per-turn `Usage` telemetry: the\nrun-level total in [metrics](crate::metrics) answers \"how much\", while these\nper-turn slices answer \"on what\", so a comparison can attribute spend across\na run. Emitted only by harnesses that report per-turn *deltas*; a harness\nthat reports only a cumulative running total emits none (a cumulative\nsnapshot is not a per-turn figure).",
+          "properties": {
+            "cost": {
+              "description": "The harness-reported cost (USD) for this turn, when it reports one per\nturn. Most harnesses report cost only as a session total (or not at\nall), so this is usually absent.",
+              "format": "double",
+              "type": ["number", "null"]
+            },
+            "tokens": {
+              "$ref": "https://docs.testcabinet.ai/schema/core/run-record.schema.json#/$defs/TokenMetrics",
+              "description": "This turn's token counts, by normalized class."
+            },
+            "type": {
+              "const": "usage",
+              "type": "string"
+            }
+          },
+          "required": ["type", "tokens"],
+          "type": "object"
+        },
+        {
+          "description": "A first-party **gg** telemetry event, carried through the normalized event\nstream verbatim.\n\ngg — The Test Cabinet's own harness — is invoked directly rather than\ntranslated from a third-party CLI's output, and it emits a far richer,\npurpose-built [`GgTelemetryEvent`](crate::gg::GgTelemetryEvent) stream (the\nagent tree, the issue board, context-window breakdowns) that the normalized\ntaxonomy above deliberately does not model. Rather than flatten that stream\nand lose its structure, a gg run carries each telemetry event **natively** in\nthis variant, so gg's own events flow unchanged through the same\nsink → relay → `/jobs/{id}/live` path and into the run record's event store,\nwhere a gg-aware console renders them richly.\n\nThe gg executor **also** emits the mapped, human-facing variants above\n(an [`Agent`](EventKind::Agent) message for an assistant message, a\n[`Command`](EventKind::Command)/[`Write`](EventKind::Write) for a tool call,\nand so on) alongside these native events, so a console that does not yet\nunderstand gg's stream still shows live activity. See\n[`crate::gg_exec`] for the bridge.",
+          "properties": {
+            "event": {
+              "$ref": "https://docs.testcabinet.ai/schema/gg/telemetry-event.schema.json",
+              "description": "The gg telemetry event, verbatim.\n\nBoxed so this one variant does not dominate the size of every event in the\nprocess: it carries a whole foreign document (a capability set, an issue\nboard, a session summary) into an enum whose other variants are a handful of\nsmall strings, and it grows again with every addition to gg's contract.\n`Box<T>` serializes and renders in the contract exactly as `T`, so the wire\nshape is unchanged — the same reasoning boxes the summary inside\n[`SessionSummary`](crate::gg::GgTelemetryKind::SessionSummary)."
+            },
+            "type": {
+              "const": "gg",
+              "type": "string"
+            }
+          },
+          "required": ["type", "event"],
+          "type": "object"
+        },
+        {
+          "description": "Harness output that could not be classified as any other type.",
+          "properties": {
+            "raw": {
+              "description": "The original, unclassified harness output."
+            },
+            "type": {
+              "const": "unknown",
+              "type": "string"
+            }
+          },
+          "required": ["type", "raw"],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "sessionId": {
+          "description": "The underlying harness's session identifier, when one is known.",
+          "type": ["string", "null"]
+        },
+        "timestamp": {
+          "description": "ISO 8601 time the event was observed by the testing harness.",
+          "type": "string"
+        }
+      },
+      "required": ["timestamp"],
+      "type": "object"
+    },
+    "OrchestrationAction": {
+      "description": "The subagent orchestration states a harness can report.",
+      "oneOf": [
+        {
+          "const": "subagent_started",
+          "description": "A subagent began running.",
+          "type": "string"
+        },
+        {
+          "const": "subagent_completed",
+          "description": "A subagent finished successfully.",
+          "type": "string"
+        },
+        {
+          "const": "subagent_failed",
+          "description": "A subagent failed.",
+          "type": "string"
+        }
+      ]
+    },
+    "SystemStage": {
+      "description": "The setup and teardown stages of a run that the orchestrator reports as\n[`EventKind::System`] events, in the order they occur around a harness\nsession.",
+      "oneOf": [
+        {
+          "const": "pull_image",
+          "description": "Pulling the run-container image.",
+          "type": "string"
+        },
+        {
+          "const": "start_container",
+          "description": "Starting the run container.",
+          "type": "string"
+        },
+        {
+          "const": "install_harness",
+          "description": "Installing the harness's CLI into the running container.",
+          "type": "string"
+        },
+        {
+          "const": "probe_harness",
+          "description": "Confirming the installed harness CLI is usable.",
+          "type": "string"
+        },
+        {
+          "const": "init_test_case",
+          "description": "Running the test case's init command to prepare the workspace.",
+          "type": "string"
+        },
+        {
+          "const": "teardown",
+          "description": "Collecting artifacts and stopping the container after the session.",
+          "type": "string"
+        }
+      ]
+    },
+    "SystemStatus": {
+      "description": "The point a [`SystemStage`] has reached.",
+      "oneOf": [
+        {
+          "const": "started",
+          "description": "The stage has begun.",
+          "type": "string"
+        },
+        {
+          "const": "completed",
+          "description": "The stage finished successfully.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "The stage failed; the run will not proceed past it.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://docs.testcabinet.ai/schema/jobs-api/event-batch.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The body of `POST /jobs/{id}/events`: a batch of a job's normalized events,\nnumbered by the sequence of its first one.\n\nThe driver numbers a job's events from `0`, one per event, and `events`\nfollows `sequence` contiguously, so the event at index `i` has sequence\n`sequence + i`. The backend stores each event keyed by job and sequence,\nskipping one already stored, so a resent batch is idempotent. See the\ndriver's events page, \"Delivery to the backend\".",
+  "properties": {
+    "events": {
+      "description": "Normalized events, in the order the harness emitted them.",
+      "items": {
+        "$ref": "#/$defs/HarnessEvent"
+      },
+      "type": "array"
+    },
+    "sequence": {
+      "description": "The sequence of the first event in `events`.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": ["sequence", "events"],
+  "title": "EventBatch",
+  "type": "object"
+}
