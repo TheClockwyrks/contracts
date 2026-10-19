@@ -7,7 +7,6 @@
 //! The backend serves them; the rules that fill them are the backend's.
 
 pub mod comparisons;
-pub mod config;
 pub mod coverage;
 pub mod error;
 pub mod gg;

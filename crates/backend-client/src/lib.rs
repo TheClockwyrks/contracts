@@ -106,17 +106,13 @@ pub struct PublishedRun {
     pub links: RunLinks,
 }
 
-/// A review as the backend serves it on the read side: the reviewing account's
-/// public identity, the per-domain ratings, the prose body, and the reviewer's
-/// verdicts on the case's checklist items.
+/// A review as the backend serves it on the read side: the reviewer's identity,
+/// the per-domain ratings, the prose body, and the reviewer's verdicts on the
+/// case's checklist items.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublishedReview {
-    /// The reviewing account's id.
-    pub reviewer_id: String,
-    /// The reviewing account's display name.
+    /// The identity the review is attributed to: the Access assertion's email.
     pub reviewer: String,
-    /// The reviewing account's login handle.
-    pub username: String,
     /// The reviewer's rating for each of the case's scoring domains. This
     /// review's overall rating is the worst across them.
     pub ratings: Vec<test_cabinet_contracts::review::DomainRating>,
@@ -460,8 +456,10 @@ pub trait BackendClient: Send + Sync {
     /// Enqueue a run on the backend's job queue. (`POST /jobs`, bearer auth)
     ///
     /// `body` is the canonical [`LaunchBody`] (serialized camelCase to match the
-    /// backend); `token` is the launching account's bearer token, which the
-    /// backend gates the enqueue on (a missing/invalid token is rejected `401`).
+    /// backend); `token` is the bearer credential presented for this call in place
+    /// of the client's own. The backend takes the enqueue from a person only, so a
+    /// caller without an identity is rejected `401` and one that is not a person
+    /// `403`.
     /// Returns the enqueued job's id — the handle the watch/status methods take.
     ///
     /// Defaults to an error so a backend without queue support (or a test stub) is
@@ -542,24 +540,25 @@ pub trait BackendClient: Send + Sync {
 /// A [`BackendClient`] that talks to the backend's HTTP API over `reqwest`.
 ///
 /// The base URL is the backend's address (for example `http://127.0.0.1:8787`).
-/// The mutating endpoints (push, review, publish, media upload) require a bearer
-/// token, attached on every request when one is set via [`Self::with_token`];
-/// reads work without one. The private network is still the outer boundary — the
-/// token authenticates *which account* is acting, not merely that the caller can
-/// reach the backend.
+/// Every request the backend answers needs an identity, reads included, so the
+/// client attaches the caller's token set via [`Self::with_token`] as
+/// `Authorization: Bearer` on every request it makes: an in-cluster caller's token
+/// (the backend service token, a driver's per-job token, a publisher's per-publish
+/// job token). Each route then decides which kind of caller it takes.
 #[derive(Debug, Clone)]
 pub struct HttpBackendClient {
     /// The backend base URL, without a trailing slash.
     base_url: String,
-    /// The bearer token attached to every request, or `None` for read-only use.
+    /// The bearer token attached to every request, or `None` for a caller whose
+    /// identity reaches the backend another way (an edge-asserted one).
     token: Option<String>,
     /// The shared HTTP client.
     http: reqwest::Client,
 }
 
 impl HttpBackendClient {
-    /// Construct a client targeting the backend at `base_url`, with no token (for
-    /// read-only use). Use [`Self::with_token`] to authenticate mutating calls.
+    /// Construct a client targeting the backend at `base_url`, with no token. Use
+    /// [`Self::with_token`] to present the caller's token on every request.
     pub fn new(base_url: impl Into<String>) -> Self {
         let base = base_url.into();
         Self {
@@ -569,8 +568,8 @@ impl HttpBackendClient {
         }
     }
 
-    /// Attach (or clear) the bearer token this client authenticates mutating
-    /// requests with. `None` leaves it read-only.
+    /// Attach (or clear) the bearer token this client presents on every request,
+    /// reads included. `None` (or an empty token) sends none.
     pub fn with_token(mut self, token: Option<String>) -> Self {
         self.token = token.filter(|t| !t.is_empty());
         self
@@ -603,8 +602,8 @@ impl HttpBackendClient {
     /// failures into [`Error::Publish`]-free [`Error`] variants.
     ///
     /// The span carries only the method and request `path` (never the base URL,
-    /// which is environment config, nor any header): there is no app-level auth,
-    /// so no credential is ever attached to these requests.
+    /// which is environment config, nor any header), so the bearer token attached
+    /// to the request never reaches a span.
     #[instrument(skip(self), fields(otel.kind = "client", http.request.method = "GET", url.path = %path), err)]
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T> {
         let url = self.url(path);
@@ -1120,9 +1119,8 @@ impl BackendClient for HttpBackendClient {
     )]
     async fn launch_run(&self, body: &LaunchBody, token: &str) -> Result<String> {
         let url = self.url("/jobs");
-        // The enqueue is gated on the launching account, so the account's token
-        // rides along as `Authorization: Bearer` regardless of the client's own
-        // configured token (a watch-only client carries none).
+        // The credential handed to this call rides along as `Authorization:
+        // Bearer`, replacing the client's own configured token.
         let mut headers = self.headers();
         if let Ok(value) = http::HeaderValue::from_str(&format!("Bearer {token}")) {
             headers.insert(http::header::AUTHORIZATION, value);
@@ -1363,8 +1361,8 @@ impl HttpBackendClient {
     /// `mode` decides which already-stored targets a scan without `force` rewrites
     /// (see [`IngestMode`]).
     ///
-    /// The endpoint is open — reading and writing definitions is gated at the
-    /// network layer rather than by an account — so no bearer token is sent.
+    /// The route takes the service token, so the client's token is presented like
+    /// on every other request.
     ///
     /// A scan that aborts reports it in band, on the stream that already answered
     /// 200; that line is returned as the error it is, after being reported to
@@ -1387,6 +1385,7 @@ impl HttpBackendClient {
         let response = self
             .http
             .post(&url)
+            .headers(self.headers())
             .header(http::header::CONTENT_TYPE, "application/json")
             .header(http::header::ACCEPT, "application/x-ndjson")
             .json(&body)
@@ -1490,8 +1489,8 @@ impl HttpBackendClient {
     ///
     /// The backend refuses a version it has not ingested and an engine none of the
     /// version's definitions declare, and that refusal is returned as the error
-    /// naming its reason. The route carries the authorization `POST /ingest` does,
-    /// so no bearer token is sent.
+    /// naming its reason. The route takes the service token, as `POST /ingest`
+    /// does, presented like on every other request.
     #[instrument(
         name = "backend.upload_suite_reference_build",
         skip(self, archive),
@@ -2436,11 +2435,7 @@ struct StoredRunBody {
 #[serde(rename_all = "camelCase")]
 struct ReviewOutBody {
     #[serde(default)]
-    reviewer_id: String,
-    #[serde(default)]
     reviewer: String,
-    #[serde(default)]
-    username: String,
     /// The reviewer's rating for each scoring domain. Deserialized straight into
     /// [`test_cabinet_contracts::review::DomainRating`] — the wire shape matches it.
     #[serde(default)]
@@ -2484,9 +2479,7 @@ fn stored_run_from(body: StoredRunBody) -> PublishedRun {
             .reviews
             .into_iter()
             .map(|review| PublishedReview {
-                reviewer_id: review.reviewer_id,
                 reviewer: review.reviewer,
-                username: review.username,
                 ratings: review.ratings,
                 writeup: review.writeup,
                 checklist: review.checklist,

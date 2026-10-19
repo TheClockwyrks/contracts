@@ -16,7 +16,6 @@
 //! types behind the `contract` feature. See the documentation site's
 //! `components/contracts/overview` page.
 
-pub mod accounts;
 pub mod asset_reference;
 pub mod backend_api;
 pub mod code_analysis;
