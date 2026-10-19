@@ -56,17 +56,34 @@ pub const BUILD_OUTPUTS: [&str; 3] = ["dist", "build", "out"];
 /// was produced. Returns the first of [`BUILD_OUTPUTS`] that exists as a
 /// directory, or `None` when the run produced no static build.
 pub fn find_build_output(impl_dir: &Path) -> Option<PathBuf> {
+    let present = BUILD_OUTPUTS
+        .into_iter()
+        .filter(|name| impl_dir.join(name).is_dir());
+    find_build_output_in(present).map(|name| impl_dir.join(name))
+}
+
+/// Choose the build output among the directory names present beside a run's
+/// implementation: the first of [`BUILD_OUTPUTS`], in its priority order, that
+/// `names` contains, or `None` when it contains none of them.
+///
+/// The rule [`find_build_output`] applies to a directory, kept pure so a store
+/// that lists a run's tree as objects rather than reading a file system (the
+/// artifacts service) chooses the same build. `names` are bare directory names,
+/// in any order; names that are not build outputs are ignored.
+pub fn find_build_output_in<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<&'static str> {
+    let present: Vec<&str> = names.into_iter().collect();
     BUILD_OUTPUTS
-        .iter()
-        .map(|name| impl_dir.join(name))
-        .find(|candidate| candidate.is_dir())
+        .into_iter()
+        .find(|candidate| present.contains(candidate))
 }
 
 /// Serving one file of a build under the per-run base path it is mounted at; see
 /// [`serve_build_file`].
 #[path = "layout.build.rs"]
 mod build;
-pub use build::{ServedBuildFile, serve_build_file};
+pub use build::{
+    ServedBuildFile, content_type_for, normalize_build_path, rewrite_html_base, serve_build_file,
+};
 
 // --- proof naming ------------------------------------------------------------
 

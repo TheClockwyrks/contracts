@@ -40,7 +40,7 @@ pub fn serve_build_file(
 ) -> Option<ServedBuildFile> {
     let target = resolve_within(build_dir, rel_path)?;
     let bytes = std::fs::read(&target).ok()?;
-    let content_type = content_type_for(&target);
+    let content_type = content_type_for(&target.to_string_lossy());
     let body = if content_type.starts_with("text/html") {
         rewrite_html_base(&bytes, base_href)
     } else {
@@ -49,19 +49,38 @@ pub fn serve_build_file(
     Some(ServedBuildFile { content_type, body })
 }
 
-/// Resolve a request path to a real file inside `build_dir`, refusing anything
-/// that would escape it. An empty path or a directory resolves to `index.html`.
-fn resolve_within(build_dir: &Path, rel_path: &str) -> Option<PathBuf> {
-    let mut path = build_dir.to_path_buf();
+/// Normalize a request path *within* a build into the relative path it names,
+/// segments joined by `/`, or `None` when it would escape the build (a `..`
+/// segment, refused outright rather than resolved).
+///
+/// Empty segments (a leading or trailing slash, a `//`) and `.` are skipped, so
+/// `""`, `"/"` and `"./"` all normalize to `""`, the build root. The rule is
+/// pure: it reads no file system, so a store that keeps a build as objects
+/// rather than files applies the same traversal guard to its keys that
+/// [`serve_build_file`] applies to paths. Which file a directory request serves
+/// (its `index.html`) is left to the caller, which alone knows what exists.
+pub fn normalize_build_path(rel_path: &str) -> Option<String> {
+    let mut segments: Vec<&str> = Vec::new();
     for segment in rel_path.split('/') {
-        // Skip empties (leading/trailing/`//`) and `.`; refuse `..` outright
-        // rather than relying on canonicalization alone to catch traversal.
         if segment.is_empty() || segment == "." {
             continue;
         }
         if segment == ".." {
             return None;
         }
+        segments.push(segment);
+    }
+    Some(segments.join("/"))
+}
+
+/// Resolve a request path to a real file inside `build_dir`, refusing anything
+/// that would escape it. An empty path or a directory resolves to `index.html`.
+fn resolve_within(build_dir: &Path, rel_path: &str) -> Option<PathBuf> {
+    let mut path = build_dir.to_path_buf();
+    // The lexical guard first: `..` is refused rather than relying on
+    // canonicalization alone to catch traversal.
+    let normalized = normalize_build_path(rel_path)?;
+    for segment in normalized.split('/').filter(|s| !s.is_empty()) {
         path.push(segment);
     }
     // A directory request (including the build root) serves its index.html.
@@ -75,11 +94,17 @@ fn resolve_within(build_dir: &Path, rel_path: &str) -> Option<PathBuf> {
     resolved.starts_with(&base).then_some(resolved)
 }
 
-/// The `Content-Type` for a built asset, by file extension. Covers what a Vite
-/// game build emits (the entry HTML and JS, plus any bundled CSS, wasm, images,
-/// fonts and audio); anything unrecognized falls back to a binary stream.
-fn content_type_for(path: &Path) -> &'static str {
-    let ext = path
+/// The `Content-Type` for a built asset, by the extension of its name. Covers
+/// what a Vite game build emits (the entry HTML and JS, plus any bundled CSS,
+/// wasm, images, fonts and audio); anything unrecognized falls back to a binary
+/// stream.
+///
+/// `name` is a file name or a `/`-separated relative path (an object key within
+/// a build); only its last segment is read. The extension is what follows the
+/// last `.` of that segment, as [`Path::extension`] reads it: a leading dot
+/// alone (`.htaccess`) names no extension. Matching ignores case.
+pub fn content_type_for(name: &str) -> &'static str {
+    let ext = Path::new(name)
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase);
@@ -110,7 +135,12 @@ fn content_type_for(path: &Path) -> &'static str {
 /// Relocate an HTML document under `base_href`: inject a `<base href>` at the
 /// start of `<head>` and de-absolutize root-relative `src`/`href` references so
 /// the base applies to them. Non-UTF-8 input is returned unchanged.
-fn rewrite_html_base(bytes: &[u8], base_href: &str) -> Vec<u8> {
+///
+/// `base_href` is the URL path the build is mounted at, with a trailing slash,
+/// e.g. `/runs/<id>/build/`. This is the rewrite [`serve_build_file`] applies
+/// to an HTML response, public so a server reading the build from somewhere
+/// other than a directory relocates it the same way.
+pub fn rewrite_html_base(bytes: &[u8], base_href: &str) -> Vec<u8> {
     let Ok(html) = std::str::from_utf8(bytes) else {
         return bytes.to_vec();
     };

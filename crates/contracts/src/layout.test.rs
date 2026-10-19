@@ -41,6 +41,19 @@ fn find_build_output_is_none_without_a_build() {
 }
 
 #[test]
+fn find_build_output_in_chooses_by_priority_not_listing_order() {
+    assert_eq!(find_build_output_in(["out", "build", "dist"]), Some("dist"));
+    assert_eq!(find_build_output_in(["src", "out", "build"]), Some("build"));
+    assert_eq!(find_build_output_in(["out"]), Some("out"));
+}
+
+#[test]
+fn find_build_output_in_is_none_without_a_build_name() {
+    assert_eq!(find_build_output_in([]), None);
+    assert_eq!(find_build_output_in(["src", "node_modules", "Dist"]), None);
+}
+
+#[test]
 fn published_extension_is_mp4_for_video_and_verbatim_for_images() {
     // The public snapshot serves a video proof as mp4 (transcoded from webm)
     // regardless of the captured extension; an image keeps its own extension.
