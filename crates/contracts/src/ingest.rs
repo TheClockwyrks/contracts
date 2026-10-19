@@ -71,6 +71,14 @@ pub enum IngestProgress {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         refused_prunes: Vec<String>,
     },
+    /// A notice the scan's caller is shown and the scan continues after: the
+    /// refresh a `refresh` body asked for reports here that the test suites'
+    /// update failed and the scan proceeds without it. A client that does not
+    /// know the line ignores it.
+    Notice {
+        /// The notice, as the caller prints it.
+        message: String,
+    },
     /// The scan aborted, with the reason.
     Error {
         /// What went wrong.
@@ -123,6 +131,13 @@ pub struct IngestBody {
     /// default scan, which skips every target the store already holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<IngestBodyMode>,
+    /// Have the deployed backend's ingest sidecar refresh its `test-suites`
+    /// checkout, and the `cold-storage` clone beside it, to the tip of the branch
+    /// the environment ingests before the scan. A backend with no sidecar ignores
+    /// it. Omitted when not asked for, so a body that does not ask serializes to
+    /// the bytes it always did.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub refresh: bool,
     /// Restrict the scan to these entries. Each is a bare case `id` (slug or folder
     /// name, expanding to all its versions), a version-qualified `id@version` (that
     /// one version only), a suite slug (every definition of every version it
@@ -131,6 +146,11 @@ pub struct IngestBody {
     /// together.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub test_cases: Option<Vec<String>>,
+}
+
+/// Whether a flag is unset, for `skip_serializing_if`.
+fn is_false(flag: &bool) -> bool {
+    !*flag
 }
 
 /// The `mode` values the ingest body accepts. Omitting `mode` is the default scan,
@@ -155,6 +175,7 @@ impl IngestBodyMode {
 
 /// The `POST /ingest` body a scan of `targets` is asked for with: every target
 /// overwritten when `force` is set, and otherwise the stored targets `mode` names.
+/// It does not ask for a `refresh`; a caller that wants one sets the field.
 pub fn ingest_body(targets: &[String], force: bool, mode: IngestMode) -> IngestBody {
     IngestBody {
         catalog_version: None,
@@ -163,6 +184,7 @@ pub fn ingest_body(targets: &[String], force: bool, mode: IngestMode) -> IngestB
             IngestMode::Absent => None,
             IngestMode::Changed => Some(IngestBodyMode::Changed),
         },
+        refresh: false,
         test_cases: (!targets.is_empty()).then(|| targets.to_vec()),
     }
 }
