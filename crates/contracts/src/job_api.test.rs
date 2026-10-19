@@ -157,3 +157,57 @@ fn a_selected_engine_round_trips_as_its_slug() {
     let parsed: LaunchBody = serde_json::from_value(value).expect("deserialize");
     assert_eq!(parsed.engine.as_deref(), Some("simple-2d"));
 }
+
+/// The held report travels as `storing`, the store fields as camelCase, and an
+/// update that sets neither store field omits both keys rather than writing null.
+#[test]
+fn a_storing_report_round_trips_and_omits_absent_store_fields() {
+    let update = StatusUpdate {
+        state: DriverState::Storing,
+        record: None,
+        detail: Some("artifacts service answered 503".to_string()),
+        artifacts_stored: None,
+        store_fault: None,
+    };
+    let value = serde_json::to_value(&update).expect("serialize");
+    assert_eq!(value["state"], "storing");
+    assert!(value.get("artifactsStored").is_none());
+    assert!(value.get("storeFault").is_none());
+
+    let parsed: StatusUpdate = serde_json::from_value(value).expect("deserialize");
+    assert!(matches!(parsed.state, DriverState::Storing));
+    assert!(parsed.artifacts_stored.is_none());
+    assert!(parsed.store_fault.is_none());
+}
+
+/// A terminal report's store fields round-trip under their wire names.
+#[test]
+fn a_terminal_report_carries_the_store_fields() {
+    let value = serde_json::json!({
+        "state": "succeeded",
+        "artifactsStored": false,
+        "storeFault": "artifacts service answered 503",
+    });
+    let parsed: StatusUpdate = serde_json::from_value(value).expect("deserialize");
+    assert_eq!(parsed.artifacts_stored, Some(false));
+    assert_eq!(
+        parsed.store_fault.as_deref(),
+        Some("artifacts service answered 503")
+    );
+
+    let back = serde_json::to_value(&parsed).expect("serialize");
+    assert_eq!(back["artifactsStored"], false);
+    assert_eq!(back["storeFault"], "artifacts service answered 503");
+}
+
+/// A job holding a record while its driver uploads reads `storing`, which is not
+/// terminal: the run is not over until the terminal report lands.
+#[test]
+fn a_storing_job_is_read_from_the_database_and_is_not_terminal() {
+    assert_eq!(JobState::from_db("storing"), JobState::Storing);
+    assert!(!JobState::Storing.is_terminal());
+    assert_eq!(
+        serde_json::to_value(JobState::Storing).expect("serialize"),
+        "storing"
+    );
+}

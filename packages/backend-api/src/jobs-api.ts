@@ -22,6 +22,7 @@ import type {
 export type DriverState =
   | "starting"
   | "running"
+  | "storing"
   | "succeeded"
   | "failed"
   | "canceled";
@@ -256,9 +257,24 @@ export type StatusUpdate = {
    */
   record?: RunRecord;
   /**
-   * A human-readable failure reason, used when `state` is `failed`.
+   * A human-readable failure reason, used when `state` is `failed`, and on a
+   * `storing` report of a failed run (or the upload failure a repeated `storing`
+   * report is made for).
    */
   detail?: string;
+  /**
+   * Whether the artifacts service acknowledged the run tree, carried on a
+   * terminal report: `true` when it did, `false` when it did not, and absent when
+   * the driver has no artifacts service. The backend leaves what it recorded for
+   * the run as it is when the field is absent.
+   */
+  artifactsStored?: boolean;
+  /**
+   * The last upload failure, carried on a terminal report when the run tree was
+   * not stored because of the store rather than the run's own tree. The backend reads it as evidence about the store whatever state the job
+   * is in.
+   */
+  storeFault?: string;
 };
 
 /**
@@ -270,6 +286,7 @@ export type JobState =
   | "dispatched"
   | "starting"
   | "running"
+  | "storing"
   | "succeeded"
   | "failed"
   | "canceled";
