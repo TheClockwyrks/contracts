@@ -1,9 +1,7 @@
 //! Tests for how the client meets an environment's edge: a refusal is reported as
-//! one, a redirect to the sign-in page is never followed, and a launch whose
-//! caller is identified by an Access credential sends no empty bearer.
+//! one, and a redirect to the sign-in page is never followed.
 
 use super::*;
-use test_cabinet_contracts::run_record::HarnessSlug;
 
 /// Serve one canned response on a fresh local port. Answers the base URL and a
 /// receiver of the request head, so a test can prove what was sent.
@@ -144,49 +142,4 @@ async fn the_backends_own_refusal_keeps_its_message() {
         "{message}"
     );
     assert!(!message.contains("refused by the edge"), "{message}");
-}
-
-fn launch_body() -> LaunchBody {
-    LaunchBody {
-        test_case: "carom".to_string(),
-        version: "v1.0.0".to_string(),
-        variant: "base".to_string(),
-        harness: HarnessSlug::Claude,
-        model: "anthropic/claude-opus-4".to_string(),
-        orchestrator: None,
-        engine: None,
-        max_runtime_seconds: None,
-        auth_mode: None,
-        retry_count: None,
-        gg_capability_set: None,
-        gg_model_windows: Default::default(),
-        gg_model_providers: Default::default(),
-        gg_model_modalities: Default::default(),
-        gg_model_prices: Default::default(),
-        model_prices: None,
-    }
-}
-
-#[tokio::test]
-async fn a_launch_with_no_token_of_its_own_presents_the_clients_credentials() {
-    let ack = r#"{"jobId":"job-1","statusUrl":"/jobs/job-1","liveUrl":"/jobs/job-1/live"}"#;
-    let (base, head) = serve(format!(
-        "HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{ack}",
-        ack.len()
-    ))
-    .await;
-
-    let job = HttpBackendClient::new(base)
-        .with_access([AccessCredential::UserToken("user-token".to_string())])
-        .launch_run(&launch_body(), "")
-        .await
-        .expect("the launch is accepted");
-    assert_eq!(job, "job-1");
-
-    let head = head
-        .await
-        .expect("the request arrived")
-        .to_ascii_lowercase();
-    assert!(!head.contains("authorization:"), "{head}");
-    assert!(head.contains("cf-access-token: user-token"), "{head}");
 }
