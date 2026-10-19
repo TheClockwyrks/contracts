@@ -15,6 +15,10 @@
           "description": "The harness driving the run, as its slug string.",
           "type": "string"
         },
+        "leaseExpiresAt": {
+          "description": "When the job's claim lease lapses (RFC 3339, UTC). `POST /jobs/next` sets\nit two minutes after the claim and `POST /jobs/leases` extends it; a job\npast `dispatched` whose lease has lapsed is one the dispatcher reports lost.\nAbsent for a job that was never claimed, and for a claimed one whose lease\nwas never written. See the backend API's \"Leases and lost jobs\".",
+          "type": ["string", "null"]
+        },
         "modelId": {
           "description": "The opaque model id passed to the harness.",
           "type": "string"

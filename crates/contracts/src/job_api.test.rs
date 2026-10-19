@@ -211,3 +211,34 @@ fn a_storing_job_is_read_from_the_database_and_is_not_terminal() {
         "storing"
     );
 }
+
+#[test]
+fn an_active_job_carries_its_lease_expiry_only_when_it_holds_one() {
+    let mut job = ActiveJobOut {
+        run_id: "j1".into(),
+        summary: summary(),
+        state: JobState::Running,
+        lease_expires_at: None,
+    };
+    let json = serde_json::to_value(&job).unwrap();
+    assert!(json.get("leaseExpiresAt").is_none());
+
+    job.lease_expires_at = Some("2026-10-19T12:02:00Z".into());
+    let json = serde_json::to_value(&job).unwrap();
+    assert_eq!(json["leaseExpiresAt"], "2026-10-19T12:02:00Z");
+    let back: ActiveJobOut = serde_json::from_value(json).unwrap();
+    assert_eq!(
+        back.lease_expires_at.as_deref(),
+        Some("2026-10-19T12:02:00Z")
+    );
+}
+
+#[test]
+fn a_lease_renewal_names_its_jobs_as_job_ids() {
+    let body: LeaseRenewal = serde_json::from_str(r#"{"jobIds":["a","b"]}"#).unwrap();
+    assert_eq!(body.job_ids, ["a", "b"]);
+    assert_eq!(
+        serde_json::to_value(&body).unwrap(),
+        serde_json::json!({ "jobIds": ["a", "b"] })
+    );
+}

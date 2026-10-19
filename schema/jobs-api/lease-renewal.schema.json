@@ -1,0 +1,17 @@
+{
+  "$id": "https://docs.testcabinet.ai/schema/jobs-api/lease-renewal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The body of `POST /jobs/leases`: the jobs whose claim leases the dispatcher\nrenews, each one whose driver `Job` it saw alive on this tick.\n\nThe backend extends the lease of each listed job still driven (`dispatched`,\n`starting`, `running` or `storing`) to two minutes after the call and ignores\nthe rest. See the backend API's \"Leases and lost jobs\" and the dispatcher\noverview's \"Claim leases\".",
+  "properties": {
+    "jobIds": {
+      "description": "The ids of the jobs whose leases to renew.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": ["jobIds"],
+  "title": "LeaseRenewal",
+  "type": "object"
+}

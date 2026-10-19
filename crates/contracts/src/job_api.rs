@@ -10,6 +10,8 @@
 //! - [`LaunchBody`] — the body of `POST /jobs`, stored verbatim at enqueue and
 //!   handed back to the driver when the dispatcher claims the job.
 //! - [`ClaimedJob`] — what the dispatcher receives from `POST /jobs/next`.
+//! - [`LeaseRenewal`] — the body of `POST /jobs/leases`, the dispatcher's
+//!   renewal of the claim leases of the jobs whose driver `Job`s are alive.
 //! - [`StatusUpdate`] / [`DriverState`] — the body of `POST /jobs/{id}/status`,
 //!   how the driver advances a job and hands back the record it produced.
 //! - [`LaunchAck`] / [`JobState`] / [`ActiveJobOut`] / [`JobStatusOut`] /
@@ -175,6 +177,21 @@ pub struct ClaimedJob {
     pub job_token: String,
     /// The launch request to run.
     pub request: LaunchBody,
+}
+
+/// The body of `POST /jobs/leases`: the jobs whose claim leases the dispatcher
+/// renews, each one whose driver `Job` it saw alive on this tick.
+///
+/// The backend extends the lease of each listed job still driven (`dispatched`,
+/// `starting`, `running` or `storing`) to two minutes after the call and ignores
+/// the rest. See the backend API's "Leases and lost jobs" and the dispatcher
+/// overview's "Claim leases".
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct LeaseRenewal {
+    /// The ids of the jobs whose leases to renew.
+    pub job_ids: Vec<String>,
 }
 
 /// The state a driver reports for a job via `POST /jobs/{id}/status`.
@@ -442,6 +459,14 @@ pub struct ActiveJobOut {
     pub summary: JobSummary,
     /// The job's current lifecycle state.
     pub state: JobState,
+    /// When the job's claim lease lapses (RFC 3339, UTC). `POST /jobs/next` sets
+    /// it two minutes after the claim and `POST /jobs/leases` extends it; a job
+    /// past `dispatched` whose lease has lapsed is one the dispatcher reports lost.
+    /// Absent for a job that was never claimed, and for a claimed one whose lease
+    /// was never written. See the backend API's "Leases and lost jobs".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub lease_expires_at: Option<String>,
 }
 
 /// A job's status, as `GET /jobs/{id}` reports it.
