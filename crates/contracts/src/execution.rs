@@ -63,3 +63,17 @@ pub enum OutputStream {
 /// seeded afterwards, so it lives in one place where both sides can see it: the
 /// driver's seeder writes it and the code analyzer reads it.
 pub const SEED_COMMIT_MESSAGE: &str = "Seed test case";
+
+/// The message on the commit the driver makes at run end, over everything the model
+/// left uncommitted on top of the history the run holds, before it writes the run's
+/// bundle for the repos service.
+///
+/// Fixed, so every bundle names its implementation commit the same way. It must differ
+/// from [`SEED_COMMIT_MESSAGE`]: the code analyzer tells a seed root by that message
+/// alone, and a run whose model never committed has this commit as the only one above
+/// the seed.
+pub const IMPLEMENTATION_COMMIT_MESSAGE: &str = "Implement test case";
+
+#[cfg(test)]
+#[path = "execution.test.rs"]
+mod tests;
