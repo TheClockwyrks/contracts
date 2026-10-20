@@ -1832,14 +1832,18 @@ fn packages_are_end_to_end_only() {
     );
 }
 
-/// One starter project per engine, each shipping only the `package.json` an
-/// engine's dependency is written into at seed time. Their contents are irrelevant
-/// to the engine checks — unlike `packages`, the case does not declare the engine
-/// dependency itself — so each is the emptiest object that parses.
+/// One starter project per engine, each shipping only its `package.json`. The
+/// engineless project depends on nothing, and the `simple-2d` project declares the
+/// engine's package at the path its runtime is vendored at, which is all a runtime
+/// engine's workspace owes.
 pub(super) const ENGINE_WORKSPACE_FILES: &[(&str, &str)] = &[
     ("workspaces/none/package.json", "{}"),
-    ("workspaces/simple-2d/package.json", "{}"),
+    ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
 ];
+
+/// A `package.json` declaring the `simple-2d` engine's package under
+/// `.vendor/packages/`.
+pub(super) const SIMPLE_2D_PACKAGE_JSON: &str = r#"{"name":"demo","dependencies":{"@clockwyrks/simple-2d":"file:./.vendor/packages/@clockwyrks/simple-2d"}}"#;
 
 /// The `[workspaces]` table naming one starter directory per engine in `engines`,
 /// matching the files [`ENGINE_WORKSPACE_FILES`] ships. Keys are quoted because an
@@ -1952,9 +1956,9 @@ fn engines_reject_none_declared_twice() {
 
 #[test]
 fn engines_with_a_runtime_require_a_workspace_package_json() {
-    // The engine's `file:` dependency is written into the workspace `package.json`
-    // at seed time, so a case supporting an engine that vendors a runtime must ship
-    // one for the seeder to edit.
+    // The engine's runtime is vendored at the `file:` path the engine's workspace
+    // declares in its `package.json`, so a case supporting an engine that vendors a
+    // runtime must ship one declaring it.
     let manifest = engines_manifest_with(
         "engines = [\"none\", \"simple-2d\"]\n",
         "",
@@ -1975,8 +1979,8 @@ fn engines_with_a_runtime_require_a_workspace_package_json() {
 
 #[test]
 fn engines_declaring_only_none_need_no_workspace_at_all() {
-    // `none` vendors no runtime, so there is no dependency to write and nothing to
-    // write it into — a case may declare it while shipping no workspace.
+    // `none` vendors no runtime, so there is no dependency to declare and nothing
+    // to declare it in — a case may declare it while shipping no workspace.
     let manifest = engines_manifest_with("engines = [\"none\"]\n", "", &[]);
     let (_dir, catalog) = catalog_with_files(&manifest, &[]);
     let version = catalog.resolve("demo", "v1.0.0").expect("resolve");
@@ -2671,8 +2675,8 @@ fn variant_reference_implementation_round_trips_to_a_resolved_host_path() {
 /// A case supporting two engines, its `base` variant declaring `variant_extra`.
 ///
 /// A case that declares an engine vendoring a runtime must ship a workspace
-/// `package.json` (the file the engine's `file:` dependency is written into when
-/// the run is seeded), so the fixture ships one. Both reference-implementation
+/// `package.json` declaring the engine's package at the path its runtime is
+/// vendored at, so the fixture ships one per engine. Both reference-implementation
 /// directories exist, so a rejection in these tests is about the *keying* and
 /// never about a missing directory.
 fn two_engine_catalog(variant_extra: &str) -> (tempfile::TempDir, TestCaseCatalog) {
@@ -2682,11 +2686,13 @@ fn two_engine_catalog(variant_extra: &str) -> (tempfile::TempDir, TestCaseCatalo
          [workspaces]\nnone = \"workspaces/none\"\n\"simple-2d\" = \"workspaces/simple-2d\"",
     );
     let version_dir = dir.path().join("end-to-end/easy/demo/v1.0.0");
-    for engine in ["none", "simple-2d"] {
+    for (engine, package_json) in [
+        ("none", "{\"name\":\"demo\"}"),
+        ("simple-2d", SIMPLE_2D_PACKAGE_JSON),
+    ] {
         let dir = version_dir.join("workspaces").join(engine);
         fs::create_dir_all(&dir).expect("create workspace dir");
-        fs::write(dir.join("package.json"), "{\"name\":\"demo\"}")
-            .expect("write workspace package.json");
+        fs::write(dir.join("package.json"), package_json).expect("write workspace package.json");
     }
     for rel in ["reference-impl/base", "reference-impl-simple-2d/base"] {
         fs::create_dir_all(version_dir.join(rel)).expect("create reference impl dir");
@@ -3695,7 +3701,7 @@ fn a_per_engine_case_seeds_one_project_per_engine() {
         &[
             ("workspaces/none/package.json", "{}"),
             ("workspaces/none/src/host.ts", "// the runtime"),
-            ("workspaces/simple-2d/package.json", "{}"),
+            ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
         ],
     );
     let version = catalog.resolve("demo", "v1.0.0").expect("resolve");
@@ -3766,10 +3772,10 @@ fn a_variant_workspace_table_replaces_the_case_s_whole_table() {
         &manifest,
         &[
             ("workspaces/none/package.json", "{}"),
-            ("workspaces/simple-2d/package.json", "{}"),
+            ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
             ("special/none/package.json", "{}"),
             ("special/none/extra.txt", "x"),
-            ("special/simple-2d/package.json", "{}"),
+            ("special/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
             (
                 "variants/special.toml",
                 "slug = \"special\"\n[workspaces]\nnone = \"special/none\"\n\
@@ -3803,7 +3809,7 @@ fn a_per_engine_validator_must_exist_in_every_engine_s_project() {
                   { id = \"serve\", kind = \"video\" } ] }\n";
     let files: &[(&str, &str)] = &[
         ("workspaces/none/package.json", "{}"),
-        ("workspaces/simple-2d/package.json", "{}"),
+        ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
         ("validation/none/vitest.config.ts", "export default {}"),
         ("validation/none/gameplay/serve.test.ts", "// check"),
         ("validation/simple-2d/vitest.config.ts", "export default {}"),
@@ -3846,7 +3852,7 @@ fn a_per_engine_validator_must_exist_in_every_engine_s_project() {
 /// `hud/overlay.test.ts` only in the engineless one.
 const SCOPED_VALIDATOR_FILES: &[(&str, &str)] = &[
     ("workspaces/none/package.json", "{}"),
-    ("workspaces/simple-2d/package.json", "{}"),
+    ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
     ("validation/none/vitest.config.ts", "export default {}"),
     ("validation/none/gameplay/serve.test.ts", "// check"),
     ("validation/none/hud/overlay.test.ts", "// check"),
@@ -4091,7 +4097,7 @@ fn the_engine_aware_checklist_drops_the_points_a_run_s_engine_does_not_carry() {
 /// present in each.
 const VALIDATOR_RATED_FILES: &[(&str, &str)] = &[
     ("workspaces/none/package.json", "{}"),
-    ("workspaces/simple-2d/package.json", "{}"),
+    ("workspaces/simple-2d/package.json", SIMPLE_2D_PACKAGE_JSON),
     ("validation/none/vitest.config.ts", "export default {}"),
     ("validation/none/gameplay/serve.test.ts", "// check"),
     ("validation/simple-2d/vitest.config.ts", "export default {}"),

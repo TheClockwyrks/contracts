@@ -632,6 +632,14 @@ fn resolve_workspaces(
             return Err(context.invalid(file, format!("workspace `{dir}` is not a directory")));
         }
         let mut files = enumerate_workspace(&source, &source)?;
+        // A starter workspace that ships a `package-lock.json` must agree with its
+        // `package.json`, exactly as an authored case's must.
+        crate::workspace_lockfile::check_workspace(&files).map_err(|err| {
+            context.invalid(
+                file,
+                format!("workspace `{dir}` ships a lockfile that does not pin it: {err}"),
+            )
+        })?;
         files.extend(assets.iter().cloned());
         files.sort_by(|a, b| a.dest.cmp(&b.dest));
         workspaces.insert(engine.slug.clone(), files);

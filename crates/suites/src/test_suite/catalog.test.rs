@@ -728,3 +728,50 @@ fn a_blank_init_is_refused() {
         .expect_err("a blank init is refused");
     assert!(err.to_string().contains("init"), "{err}");
 }
+
+/// Resolve the `end-to-end` definition of a copy of the fixture checkout whose
+/// `none` starter workspace also ships `lockfile` as its `package-lock.json`.
+fn resolve_with_lockfile(lockfile: &str) -> Result<TestCaseVersion> {
+    let copy = tempfile::tempdir().expect("a temporary directory");
+    copy_tree(&checkout(), copy.path());
+    std::fs::write(
+        copy.path()
+            .join("carom/versions/v1.0.0/workspaces/none/package-lock.json"),
+        lockfile,
+    )
+    .expect("the lockfile is written");
+    let dir = materials();
+    TestSuiteCatalog::with_materials(copy.path(), dir.path()).resolve_with(
+        "carom",
+        "v1.0.0",
+        "end-to-end",
+        &fixture_catalog(),
+    )
+}
+
+#[test]
+fn a_starter_workspace_whose_lockfile_agrees_resolves() {
+    let resolved = resolve_with_lockfile(
+        r#"{"name":"carom-none","lockfileVersion":3,"packages":{"":{"name":"carom-none"}}}"#,
+    )
+    .expect("an agreeing lockfile resolves");
+    assert!(
+        resolved
+            .common_workspace
+            .get("none")
+            .iter()
+            .any(|file| file.dest == Path::new("package-lock.json")),
+        "the lockfile is seeded with the workspace"
+    );
+}
+
+#[test]
+fn a_starter_workspace_whose_lockfile_disagrees_is_refused() {
+    let err = resolve_with_lockfile(
+        r#"{"lockfileVersion":3,"packages":{"":{"dependencies":{"vite":"^8"}}}}"#,
+    )
+    .expect_err("a disagreeing lockfile is refused");
+    let message = err.to_string();
+    assert!(message.contains("workspaces/none"), "got: {message}");
+    assert!(message.contains("`vite`"), "got: {message}");
+}
