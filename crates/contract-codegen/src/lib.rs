@@ -507,6 +507,7 @@ pub fn contract_modules(cfg: &Config) -> Vec<TsModule> {
                 gg::GgErrorSummary, gg::GgUndocumentedCalls,
                 gg::GgRejectedResponses,
                 gg::GgSlotCost, gg::GgProviderStat, gg::GgProviderFault, gg::GgProviderCandidate,
+                gg::GgWaitKind,
                 gg::GgSessionSummary,
                 gg::GgTelemetryKind, gg::GgTelemetryEvent, gg::GgUsageFigure,
             ],
