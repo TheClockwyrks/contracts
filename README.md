@@ -27,6 +27,12 @@ between the repositories.
   (`@clockwyrks/backend-api`): the generated TypeScript, published to the
   project's feed. The asset contract is seeded into a model's workspace, so
   `tests/asset-contract.test.ts` holds its prose to the seeded vocabulary.
+- `packages/browser-driver` (`@clockwyrks/browser-driver`, private): the
+  Playwright script the suites crate's browser calls run with `node`
+  (`driver.mjs`), with the two-pass validation runtime and the assertion kit
+  it hands a validation script (`validation.mjs`, `ttc.mjs`). It is not
+  published; an image that renders or validates copies it out of a contracts
+  checkout.
 - `schema/`: the generated JSON Schemas (`core/`, `gg/`, `backend-api/`,
   `coverage/`, `jobs-api/`, `snapshot/`), which the documentation site
   publishes under `/schema/`.

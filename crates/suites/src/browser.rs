@@ -2,7 +2,7 @@
 //!
 //! Both reference rendering (see `test_cabinet_driver::reference`) and the load-check
 //! validator drive a headless browser through the bundled Playwright driver
-//! script (`packages/browser-driver/driver.mjs`) and, for captures, serve a
+//! script (this repository's `packages/browser-driver/driver.mjs`) and, for captures, serve a
 //! built site over a tiny static file server. That shared machinery lives here.
 //!
 //! The driver is invoked out-of-process via `node`, so a host without Node, the
@@ -46,10 +46,14 @@ const DRIVER_ENV: &str = "TCAB_BROWSER_DRIVER";
 
 /// Candidate locations for the bundled driver, relative to the current
 /// directory. Runs are launched from the repository root (so the `test-cases/`
-/// catalog resolves), which is also where the npm workspace lives.
-const DRIVER_CANDIDATES: [&str; 2] = [
+/// catalog resolves), which is also where the npm workspace lives. The script is
+/// this repository's, so it is at `packages/` of a contracts checkout and at
+/// `contracts/packages/` of the superrepo, which checks it out as a submodule.
+const DRIVER_CANDIDATES: [&str; 4] = [
     "packages/browser-driver/driver.mjs",
     "../packages/browser-driver/driver.mjs",
+    "contracts/packages/browser-driver/driver.mjs",
+    "../contracts/packages/browser-driver/driver.mjs",
 ];
 
 /// Locate the browser driver script, honoring `TCAB_BROWSER_DRIVER` first.
