@@ -1844,9 +1844,9 @@ export type GgReviewer = {
  * [`model_call_timeout_secs`](Self::model_call_timeout_secs) bounds every model request and
  * defaults to thirty minutes when absent;
  * [`model_stream_idle_secs`](Self::model_stream_idle_secs) bounds how long a reply that has
- * started streaming may go without a further delta and defaults to sixty; the [retry schedule](Self::max_model_retries) is
- * conducted on its defaults when neither of its keys is written. [`max_turns`](Self::max_turns),
- * [`max_runtime_secs`](Self::max_runtime_secs),
+ * started streaming may go without a further delta and defaults to sixty; the
+ * [retry schedule](Self::max_model_retries) is conducted on its defaults when neither of its
+ * keys is written. [`max_turns`](Self::max_turns), [`max_runtime_secs`](Self::max_runtime_secs),
  * [`max_cost`](Self::max_cost), [`max_consecutive_errors`](Self::max_consecutive_errors) and
  * [`max_error_rate`](Self::max_error_rate) with its [window](Self::error_rate_window) are each
  * **unarmed when the configuration leaves them out**. gg arms no ceiling nobody wrote: an agent
@@ -1921,8 +1921,8 @@ export type GgRunLimits = {
    * length without streaming, or a provider that delivers a reply in one piece, is given the
    * whole ceiling to answer. A reply that goes quiet after it has started is cut sooner by
    * [`model_stream_idle_secs`](Self::model_stream_idle_secs), so this is the bound on a reply
-   * whose deltas keep arriving for longer than it, and on every attempt when the idle bound is
-   * set above it. The backoff between attempts sits outside it.
+   * whose deltas keep arriving for longer than it, and on every attempt that never sends a
+   * delta, whatever the idle bound. The backoff between attempts sits outside it.
    *
    * Unlike the ceilings above it, breaching this one does not stop the run. The turn is
    * recorded as a [`ModelTimeout`](GgTurnErrorType::ModelTimeout) error and the agent asks
@@ -1932,15 +1932,15 @@ export type GgRunLimits = {
   modelCallTimeoutSecs?: number;
   /**
    * The bound, in seconds, on **how long a reply that has started streaming may go without a
-   * further delta** — the idle clock that turns a provider which has stopped mid-reply into a transport failure the
-   * client retries on its own [schedule](Self::max_model_retries), rather than a stall the run
-   * waits the whole [call ceiling](Self::model_call_timeout_secs) out on.
+   * further delta** — the idle clock that turns a provider which has stopped mid-reply into a
+   * transport failure the client retries on its own [schedule](Self::max_model_retries), rather
+   * than a stall the run waits the whole [call ceiling](Self::model_call_timeout_secs) out on.
    *
    * One of the four keys an absence answers with a **figure**: **absent is sixty seconds**, on
    * the terms the call ceiling is, because a reply that stops arriving is never a setting an
-   * operator can ask for — a run that had no idle bound would be one a silent provider could
-   * hold for the whole of every call ceiling. `0` is refused on the same terms as every other
-   * unhonourable figure.
+   * operator can ask for — a started stream with no idle bound is one a provider that stops
+   * mid-reply holds for the whole call ceiling, and there is no run whose replies may stall
+   * indefinitely. `0` is refused on the same terms as every other unhonourable figure.
    *
    * The clock is **armed by the first delta**: the first chunk whose `delta` carries content,
    * reasoning or tool-call arguments. It restarts on each such chunk after it. Keep-alive
