@@ -23,6 +23,9 @@
 //!   the current span's `traceparent` from its caller; this crate links no
 //!   OpenTelemetry.
 //! - [`content_digest`] and [`content_labels`]: what an ingest keys a version by.
+//! - [`workspace_lockfile`]: a workspace's `package.json` and the `package-lock.json`
+//!   that pins it, the agreement resolution holds them to, and the version a lockfile
+//!   links at a vendored path, which seeding holds the vendored copy to.
 //!
 //! The shapes these read and write are `test_cabinet_contracts`'. The crate names no
 //! engine table: everything that checks a declared engine slug takes an
@@ -46,6 +49,7 @@ pub mod test_case_group;
 pub mod test_suite;
 pub mod validator;
 pub mod vitest_validator;
+pub mod workspace_lockfile;
 
 /// What a test driving a real browser needs, and the `TCAB_REQUIRE_BROWSER`
 /// rule for when it is missing. Exposed to other crates' tests by the

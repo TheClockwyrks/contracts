@@ -19,6 +19,7 @@ use crate::color::{CanvasBackground, PreviewBackground};
 use crate::engine::{EngineCatalog, EngineSelection, NONE_SLUG};
 use crate::error::{Error, Result};
 use crate::fs::read_dir_names;
+use crate::workspace_lockfile;
 
 // The resolved shapes a run is built from are the contract the definition store,
 // the backend and the console share, so they live in
@@ -287,10 +288,11 @@ struct Manifest {
     /// case; the resolved
     /// [`TestCaseVersion::engines`] therefore always carries it, first. Listing it
     /// explicitly is the readable form and is not an error. Every other entry must
-    /// be a slug the catalogue knows, and a case that names one must ship a
-    /// workspace `package.json`, because the engine's dependency is written into
-    /// that file at seed time. Both are checked when the version resolves, so a
-    /// mistake fails before a run is spent. Empty (the default) means the version
+    /// be a slug the catalogue knows, and a case that names one providing a runtime
+    /// must ship, for that engine, a workspace whose `package.json` declares the
+    /// engine's package by its `file:` spec under `.vendor/packages/`, the path the
+    /// runtime is vendored at when the run is seeded. Both are checked when the
+    /// version resolves, so a mistake fails before a run is spent. Empty (the default) means the version
     /// runs only without an engine.
     #[serde(default)]
     engines: Vec<String>,
@@ -1679,6 +1681,126 @@ fn read_package_dependencies(
         }
     }
     Ok(deps)
+}
+
+/// The directory a resolved workspace's `files` were read from, relative to the
+/// version folder `root`, for naming the workspace in a refusal. `None` when the
+/// workspace has no files.
+fn workspace_dir(files: &[WorkspaceFile], root: &Path) -> Option<PathBuf> {
+    let file = files.first()?;
+    let base = file
+        .source_path
+        .ancestors()
+        .nth(file.dest.components().count())?;
+    Some(base.strip_prefix(root).unwrap_or(base).to_path_buf())
+}
+
+/// How a refusal names the workspace one engine of `workspaces` seeds: its
+/// directory, and the variant that declares it when it is a variant's own.
+fn describe_workspace(
+    files: &[WorkspaceFile],
+    engine: &str,
+    variant: Option<&str>,
+    root: &Path,
+) -> String {
+    let owner = match variant {
+        Some(variant) => format!("variant `{variant}`'s workspace"),
+        None => "the workspace".to_string(),
+    };
+    match workspace_dir(files, root) {
+        Some(dir) => format!(
+            "{owner} for engine `{engine}` (`{}`)",
+            forward_slash_path(&dir).display()
+        ),
+        None => format!("{owner} for engine `{engine}`"),
+    }
+}
+
+/// Hold every engine's project in `workspaces` that ships a `package-lock.json`
+/// to agreeing with its `package.json` (see [`crate::workspace_lockfile`]).
+/// `variant` names the variant whose own workspaces these are, `None` for the
+/// case's.
+fn check_workspace_lockfiles(
+    workspaces: &EngineWorkspaces,
+    variant: Option<&str>,
+    root: &Path,
+    invalid: &impl Fn(String) -> Error,
+) -> Result<()> {
+    for engine in workspaces.engines() {
+        let files = workspaces.get(engine);
+        workspace_lockfile::check_workspace(files).map_err(|err| {
+            invalid(format!(
+                "{} ships a lockfile that does not pin it: {err}",
+                describe_workspace(files, engine, variant, root)
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+/// Hold the workspace a variant is seeded with to declaring each runtime engine's
+/// package, keyed by engine slug in `runtime_packages`, by its `file:` spec under
+/// [`TCAB_VENDOR_DIR`] (or the legacy [`TCAB_ENGINE_DIR`] an older version
+/// declares), as a dependency or a dev dependency. That path is where seeding
+/// vendors the engine's runtime; see `docs/testing/end-to-end/overview.md`,
+/// "Engines".
+fn check_engine_declarations(
+    workspace: &EngineWorkspaces,
+    runtime_packages: &BTreeMap<String, String>,
+    variant: &str,
+    root: &Path,
+    invalid: &impl Fn(String) -> Error,
+) -> Result<()> {
+    for (engine, package) in runtime_packages {
+        let expected = tcab_package_file_dep(package);
+        let files = workspace.get(engine);
+        let seeded = match workspace_dir(files, root) {
+            Some(dir) => format!(
+                "variant `{variant}` is seeded, on engine `{engine}`, with the workspace `{}`",
+                forward_slash_path(&dir).display()
+            ),
+            None => {
+                format!("variant `{variant}` is seeded, on engine `{engine}`, with no workspace")
+            }
+        };
+        let package_json = files
+            .iter()
+            .find(|file| file.dest == Path::new(workspace_lockfile::PACKAGE_JSON))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "{seeded}, which has no `package.json` at its root; a workspace for an \
+                     engine providing a runtime declares it there as \
+                     `\"{package}\": \"{expected}\"`"
+                ))
+            })?;
+        let manifest = workspace_lockfile::PackageManifest::read(&package_json.source_path)
+            .map_err(|err| invalid(format!("{seeded}, whose {err}")))?;
+        let declared = match manifest.dependency(package) {
+            Some(("dependencies" | "devDependencies", spec)) => Some(spec),
+            _ => None,
+        };
+        let vendored = [TCAB_VENDOR_DIR, TCAB_ENGINE_DIR]
+            .map(|dir| workspace_lockfile::normalize_relative(&format!("{dir}/{package}")));
+        match declared {
+            Some(spec)
+                if workspace_lockfile::file_directory_spec(spec)
+                    .is_some_and(|path| vendored.contains(&path)) => {}
+            Some(spec) => {
+                return Err(invalid(format!(
+                    "{seeded}, whose `package.json` declares the engine's package \
+                     `{package}` as `{spec}`; it must be `{expected}`, the path the engine's \
+                     runtime is vendored at"
+                )));
+            }
+            None => {
+                return Err(invalid(format!(
+                    "{seeded}, whose `package.json` does not declare the engine's package \
+                     as a dependency or a dev dependency; add `\"{package}\": \"{expected}\"`"
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Which trees of a [`TestCaseCatalog`] hold at least one version folder (see
@@ -3480,7 +3602,7 @@ impl TestCaseCatalog {
         // depending on the vendored engine) could not build engineless at all, so
         // being held to offering that run would be a promise the case cannot keep.
         // A case that genuinely builds both ways lists `none` alongside.
-        let (engines, engines_vendor_runtime) = {
+        let (engines, runtime_packages) = {
             if (!manifest.engines.is_empty() || !manifest.engine_tables.is_empty())
                 && !matches!(
                     test_type,
@@ -3500,10 +3622,10 @@ impl TestCaseCatalog {
                 Vec::new()
             };
             let mut declared = HashSet::new();
-            // Whether any declared engine actually vendors a runtime. Only then does
-            // the seeder have a dependency to write, and only then does the case owe
-            // a `package.json` for it to be written into.
-            let mut vendors_runtime = false;
+            // The package each declared engine that vendors a runtime carries, by
+            // slug. Only such an engine is vendored at seed time, and only its
+            // workspace owes the `package.json` declaring it.
+            let mut runtime_packages: BTreeMap<String, String> = BTreeMap::new();
             // The two spellings are one declaration: a bare slug is support at any
             // version, an `[[engine]]` table is support over a range. Resolution
             // merges them into one set, checks each slug against the closed
@@ -3536,7 +3658,9 @@ impl TestCaseCatalog {
                          `[[engine]]`"
                     )));
                 }
-                vendors_runtime |= engine.provides_runtime();
+                if let Some(package) = engine.package() {
+                    runtime_packages.insert(slug.to_string(), package.to_string());
+                }
                 let support = match table {
                     None => EngineSupport::unbounded(slug),
                     Some(table) => {
@@ -3583,7 +3707,7 @@ impl TestCaseCatalog {
                 };
                 engines.push(support);
             }
-            (engines, vendors_runtime)
+            (engines, runtime_packages)
         };
         // The supported *slugs*, in resolved order — what a per-engine table is
         // held against and what a refusal lists. The ranges are irrelevant to both:
@@ -3678,24 +3802,12 @@ impl TestCaseCatalog {
             }
         };
 
-        // The engine's `file:` dependency is written into the seeded workspace's
-        // `package.json` at seed time — the one place seeding edits that file — so a
-        // case supporting an engine with a runtime must ship one for the seeder to
-        // edit. Check the common workspace only: a variant's workspace *replaces* it,
-        // and the engine is a case-wide claim, so a case-wide file is what has to be
-        // there.
-        if engines_vendor_runtime
-            && !common_workspace
-                .files()
-                .any(|file| file.dest == Path::new("package.json"))
-        {
-            return Err(invalid(
-                "a case that declares an engine providing a runtime must ship a workspace \
-                 containing a `package.json` at its root (the file the engine dependency is \
-                 written into when the run is seeded)"
-                    .to_string(),
-            ));
-        }
+        // A workspace that ships a `package-lock.json` must agree with the
+        // `package.json` beside it, so the run begins from a lockfile `npm ci` will
+        // install. Every engine's project of the common workspace is checked here,
+        // and a variant's own workspace where it is resolved below; a workspace
+        // without a lockfile is accepted unchecked.
+        check_workspace_lockfiles(&common_workspace, None, &root, &invalid)?;
 
         // The init command, when declared, runs in the container after seeding; a
         // blank string would be a no-op the author almost certainly did not mean,
@@ -4781,6 +4893,21 @@ impl TestCaseCatalog {
                     None => None,
                 }
             };
+            if let Some(own) = &workspace {
+                check_workspace_lockfiles(own, Some(&variant.slug), &root, &invalid)?;
+            }
+            // The engine's runtime is vendored at seed time under `.vendor/packages/`,
+            // where the engine's workspace already declares it, so the workspace this
+            // variant is seeded with must declare each runtime engine's package. It
+            // is the variant's own workspace when it declares one and the case's
+            // otherwise, because a variant's workspace replaces the case's.
+            check_engine_declarations(
+                workspace.as_ref().unwrap_or(&common_workspace),
+                &runtime_packages,
+                &variant.slug,
+                &root,
+                &invalid,
+            )?;
 
             // A variant's reference implementation, when declared, is the authored
             // *correct* build shown on the case's "Reference" tab. It is a buildable
@@ -6276,6 +6403,10 @@ fn humanize(slug: &str) -> String {
 #[cfg(test)]
 #[path = "test_case.test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "test_case.lockfile.test.rs"]
+mod lockfile_tests;
 
 #[cfg(test)]
 #[path = "test_case.engines.test.rs"]

@@ -100,30 +100,27 @@ pub const TCAB_PACKAGES_DIR: &str = "/opt/tcab-packages";
 /// the run's result.
 pub const TCAB_AUDIO_STORE_DIR: &str = "/opt/tcab-audio";
 
-/// The in-repository directory a `packages`-declaring case's runtime libraries are
-/// vendored into at seed time (relative to the run root). The case's workspace
+/// The in-repository directory a `packages`-declaring case's runtime libraries,
+/// and the selected engine's runtime, are vendored into at seed time (relative to
+/// the run root). The case's workspace
 /// `package.json` depends on each via an in-repo relative `file:` path pointing
 /// here (see `tcab_package_file_dep`), so the dependency resolves identically
 /// wherever the tree lives — the run container, the validation host, and any clone
 /// of the published repository — with no absolute path to break when it moves.
 pub const TCAB_VENDOR_DIR: &str = ".vendor/packages";
 
-/// The in-repository directory the selected [engine](crate::engine)'s runtime is
-/// vendored into at seed time (relative to the run root), when the run selects an
-/// engine that provides one. Like [`TCAB_VENDOR_DIR`], the seeded workspace
-/// depends on it through an in-repo relative `file:` path, so the tree resolves
-/// the same wherever it ends up.
+/// The **legacy** in-repository directory an engine's runtime was vendored into
+/// (relative to the run root), still accepted where an older case version's
+/// engine workspace declares its engine there.
 ///
-/// It is deliberately **separate** from [`TCAB_VENDOR_DIR`] because the two
-/// arrive by opposite routes. A case *declares* its packages, and its own
-/// workspace `package.json` — authored in this repository and frozen with the
-/// version — already names each one; the seeder only fills the vendored copies
-/// in. An engine is a **run dimension the case never names**: it is chosen per
-/// run, so nothing in the case's tree can mention it and the seeder is what
-/// writes the dependency into `package.json`. Keeping the two trees apart keeps
-/// that distinction legible in the produced repository (and in its diff): what is
-/// under `.vendor/packages` is the case's, what is under `.vendor/engine` is the
-/// run's.
+/// An engine's runtime is vendored under [`TCAB_VENDOR_DIR`], exactly as a
+/// declared package is: the workspace a case ships for each engine already
+/// declares the engine's package by its in-repo `file:` spec there, in its
+/// `package.json` and in the `package-lock.json` that links it, and seeding
+/// vendors the runtime at the path that spec names (see
+/// `docs/testing/end-to-end/overview.md`, "Engines"). A frozen version written
+/// before that declares `file:./.vendor/engine/<package>` instead, and resolution
+/// accepts that path so it keeps resolving.
 pub const TCAB_ENGINE_DIR: &str = ".vendor/engine";
 
 /// One of the Test Cabinet's own `@clockwyrks/*` runtime libraries a case may
@@ -160,9 +157,9 @@ pub struct ShippablePackage {
 /// The staging list is the **wider** of the two, and deliberately so: it also
 /// stages every [engine](crate::engine) runtime into the same host store, and an
 /// engine may **not** be requested through `packages`. An engine is a run
-/// dimension the case never names — it is vendored under [`TCAB_ENGINE_DIR`] and
-/// written into the seeded `package.json` by the seeder — so a name staged for an
-/// engine must stay out of this list, or a case could pin a runtime that the run's
+/// dimension selected per run, which the case's per-engine workspace declares and
+/// seeding vendors for the run's engine alone — so a name staged for an engine
+/// must stay out of this list, or a case could pin a runtime that the run's
 /// own engine selection is supposed to choose.
 pub const SHIPPABLE_PACKAGES: &[ShippablePackage] = &[
     ShippablePackage {

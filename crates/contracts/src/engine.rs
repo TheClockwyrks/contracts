@@ -54,8 +54,8 @@ pub struct EngineManifest {
     /// What the engine provides, for display.
     pub description: String,
     /// The npm package carrying the runtime, vendored into the run repository at
-    /// seed time and written into the seeded workspace's `package.json`. Absent
-    /// when the engine supplies no runtime.
+    /// seed time at the `file:` path the engine's workspace `package.json` already
+    /// declares it by. Absent when the engine supplies no runtime.
     #[serde(default)]
     pub package: Option<String>,
     /// The directory inside the package holding the engine's own documentation,

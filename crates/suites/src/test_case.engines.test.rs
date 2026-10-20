@@ -121,9 +121,9 @@ fn both_forms_may_appear_in_one_manifest() {
 
 #[test]
 fn an_engine_table_still_requires_the_workspace_package_json() {
-    // The engine's `file:` dependency is written into the seeded workspace's
-    // `package.json` at seed time, so the table form owes the same file the bare
-    // list form does.
+    // The engine's runtime is vendored at the `file:` path the workspace's
+    // `package.json` declares, so the table form owes the same file the bare list
+    // form does.
     let manifest =
         engine_table_manifest("[[engine]]\nslug = \"simple-2d\"\nmin_version = \"1.0.0\"\n");
     let (_dir, catalog) =
