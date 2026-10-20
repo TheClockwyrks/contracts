@@ -545,6 +545,31 @@
       "required": ["calls"],
       "type": "object"
     },
+    "GgWaitKind": {
+      "description": "What an agent is waiting on when it emits a [`Heartbeat`](GgTelemetryKind::Heartbeat).\n\nThe four waits the [telemetry overview](https://docs.testcabinet.ai/gg/telemetry/overview/)\nnames: a closed set, so a console labels each one and a query groups by it.",
+      "oneOf": [
+        {
+          "const": "model_request",
+          "description": "A request to the model, from the moment it is sent until its reply has been read.",
+          "type": "string"
+        },
+        {
+          "const": "tool_call",
+          "description": "A tool call, from its dispatch until its result is ready for the model.",
+          "type": "string"
+        },
+        {
+          "const": "program",
+          "description": "A program's execution, from its start until it returns.",
+          "type": "string"
+        },
+        {
+          "const": "subagent",
+          "description": "One or more subagents, from the moment the agent starts waiting on them until the\nwait returns.",
+          "type": "string"
+        }
+      ]
+    },
     "HarnessEvent": {
       "description": "A single normalized event emitted while a harness runs.\n\nThe common fields (timestamp and optional session ID) are carried alongside\nthe type specific [`EventKind`], which is flattened into the serialized form\nso the type discriminator and its fields sit inline rather than under a\nnested payload.",
       "oneOf": [

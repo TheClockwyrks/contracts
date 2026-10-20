@@ -2880,6 +2880,14 @@ export type GgProviderCandidate = {
 };
 
 /**
+ * What an agent is waiting on when it emits a [`Heartbeat`](GgTelemetryKind::Heartbeat).
+ *
+ * The four waits the [telemetry overview](https://docs.testcabinet.ai/gg/telemetry/overview/)
+ * names: a closed set, so a console labels each one and a query groups by it.
+ */
+export type GgWaitKind = "model_request" | "tool_call" | "program" | "subagent";
+
+/**
  * The compact, aggregatable summary of one whole gg session — the per-run outcome
  * [result aggregation] slices and correlates across many runs.
  *
@@ -4444,6 +4452,22 @@ export type GgTelemetryKind =
       detail: string;
     }
   | {
+      type: "heartbeat";
+      /**
+       * What the agent is waiting on.
+       */
+      waitingOn: GgWaitKind;
+      /**
+       * How long the agent has waited on it so far, in milliseconds.
+       */
+      waitedMs: number;
+      /**
+       * What exactly it waits on, for a reader: the tool's name, the subagents' or the
+       * issue's ids. Omitted when the kind says it all.
+       */
+      detail?: string;
+    }
+  | {
       type: "log";
       /**
        * The severity level (for example `"info"`, `"warn"`, or `"error"`).
@@ -5766,6 +5790,22 @@ export type GgTelemetryEvent = {
        * The last failure's cause, or the miss count that reached the limit, for a reader.
        */
       detail: string;
+    }
+  | {
+      type: "heartbeat";
+      /**
+       * What the agent is waiting on.
+       */
+      waitingOn: GgWaitKind;
+      /**
+       * How long the agent has waited on it so far, in milliseconds.
+       */
+      waitedMs: number;
+      /**
+       * What exactly it waits on, for a reader: the tool's name, the subagents' or the
+       * issue's ids. Omitted when the kind says it all.
+       */
+      detail?: string;
     }
   | {
       type: "log";

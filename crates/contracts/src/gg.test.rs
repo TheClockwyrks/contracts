@@ -4251,3 +4251,59 @@ fn a_bare_provider_pin_reads_as_a_list_a_launch_refuses() {
         vec![GgProviderCandidate::new("Alibaba", "fp8")]
     );
 }
+
+/// A heartbeat is snake_case tagged with camelCase fields, its wait kind is its wire id, and an
+/// absent detail is omitted rather than written as `null`; both shapes read back unchanged.
+#[test]
+fn a_heartbeat_round_trips_with_and_without_its_detail() {
+    let with_detail = GgTelemetryKind::Heartbeat {
+        waiting_on: GgWaitKind::ToolCall,
+        waited_ms: 120_000,
+        detail: Some("shell".to_string()),
+    };
+    let value = serde_json::to_value(&with_detail).unwrap();
+    assert_eq!(
+        value,
+        json!({ "type": "heartbeat", "waitingOn": "tool_call", "waitedMs": 120_000, "detail": "shell" })
+    );
+    assert_eq!(
+        serde_json::from_value::<GgTelemetryKind>(value).unwrap(),
+        with_detail
+    );
+
+    let bare = GgTelemetryKind::Heartbeat {
+        waiting_on: GgWaitKind::ModelRequest,
+        waited_ms: 60_000,
+        detail: None,
+    };
+    let value = serde_json::to_value(&bare).unwrap();
+    assert_eq!(
+        value,
+        json!({ "type": "heartbeat", "waitingOn": "model_request", "waitedMs": 60_000 })
+    );
+    assert_eq!(
+        serde_json::from_value::<GgTelemetryKind>(value).unwrap(),
+        bare
+    );
+
+    let mut event = GgTelemetryEvent::new("2026-10-20T00:00:00Z", bare);
+    event.agent_id = Some("root".to_string());
+    let line = serde_json::to_string(&event).unwrap();
+    assert_eq!(
+        serde_json::from_str::<GgTelemetryEvent>(&line).unwrap(),
+        event
+    );
+
+    for (kind, id) in [
+        (GgWaitKind::ModelRequest, "model_request"),
+        (GgWaitKind::ToolCall, "tool_call"),
+        (GgWaitKind::Program, "program"),
+        (GgWaitKind::Subagent, "subagent"),
+    ] {
+        assert_eq!(serde_json::to_value(kind).unwrap(), json!(id));
+        assert_eq!(
+            serde_json::from_value::<GgWaitKind>(json!(id)).unwrap(),
+            kind
+        );
+    }
+}

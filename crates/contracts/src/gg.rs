@@ -7192,6 +7192,25 @@ pub enum GgProviderFault {
     CacheMiss,
 }
 
+/// What an agent is waiting on when it emits a [`Heartbeat`](GgTelemetryKind::Heartbeat).
+///
+/// The four waits the [telemetry overview](https://docs.testcabinet.ai/gg/telemetry/overview/)
+/// names: a closed set, so a console labels each one and a query groups by it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub enum GgWaitKind {
+    /// A request to the model, from the moment it is sent until its reply has been read.
+    ModelRequest,
+    /// A tool call, from its dispatch until its result is ready for the model.
+    ToolCall,
+    /// A program's execution, from its start until it returns.
+    Program,
+    /// One or more subagents, from the moment the agent starts waiting on them until the
+    /// wait returns.
+    Subagent,
+}
+
 /// One provider a model may run on, and the quantization that endpoint serves.
 ///
 /// A [`GgInvocation::model_providers`] entry is an ordered list of these: the order a run tries
@@ -9000,6 +9019,25 @@ pub enum GgTelemetryKind {
         fault: GgProviderFault,
         /// The last failure's cause, or the miss count that reached the limit, for a reader.
         detail: String,
+    },
+    /// The agent is alive and waiting: emitted while nothing else is, so a host's idle
+    /// watchdog tells a run that is waiting from one that has stopped.
+    ///
+    /// At most one per agent every 60 seconds of a wait on a model request, a tool call, a
+    /// program's execution or a subagent, on the waiting agent's own stream. A wait shorter
+    /// than the interval emits none. Carries no figure a summary counts: it is the
+    /// [liveness signal](https://docs.testcabinet.ai/gg/telemetry/overview/) the
+    /// [runtime limits](https://docs.testcabinet.ai/components/driver/execution/#runtime-limits)
+    /// rely on, and nothing more.
+    Heartbeat {
+        /// What the agent is waiting on.
+        waiting_on: GgWaitKind,
+        /// How long the agent has waited on it so far, in milliseconds.
+        waited_ms: u64,
+        /// What exactly it waits on, for a reader: the tool's name, the subagents' or the
+        /// issue's ids. Omitted when the kind says it all.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        detail: Option<String>,
     },
     /// A diagnostic log line from gg itself (not agent output).
     Log {
