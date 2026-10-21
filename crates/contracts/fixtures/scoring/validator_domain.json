@@ -297,7 +297,65 @@
     },
     {
       "name": "an inconclusive or silent script lowers nothing",
-      "why": "The automated-only failure semantics: only decided failures and contract failures fail a point.",
+      "why": "The automated-only failure semantics: only decided failures and contract failures fail a point. A decided pass beside them keeps the checklist judged.",
+      "input": {
+        "domains": ["gameplay"],
+        "items": [
+          {
+            "id": "crashed",
+            "weight": 1,
+            "failureCap": "broken",
+            "domains": ["gameplay"]
+          },
+          {
+            "id": "unmet",
+            "weight": 1,
+            "failureCap": "broken",
+            "domains": ["gameplay"]
+          },
+          {
+            "id": "silent",
+            "weight": 1,
+            "failureCap": "broken",
+            "domains": ["gameplay"]
+          },
+          {
+            "id": "passed",
+            "weight": 1,
+            "failureCap": "broken",
+            "domains": ["gameplay"]
+          }
+        ],
+        "debugScripts": [
+          {
+            "itemId": "unmet",
+            "ran": false,
+            "preconditionUnmet": true
+          },
+          {
+            "itemId": "silent"
+          },
+          {
+            "itemId": "passed",
+            "verdicts": [
+              {
+                "id": "passed",
+                "pass": true
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "domain": "gameplay",
+          "rating": "flawless"
+        }
+      ]
+    },
+    {
+      "name": "a checklist that decides no scored point is broken",
+      "why": "Rated broken: a build nothing could judge has demonstrated nothing, whatever left its points undecided.",
       "input": {
         "domains": ["gameplay"],
         "items": [
@@ -334,7 +392,7 @@
       "expect": [
         {
           "domain": "gameplay",
-          "rating": "flawless"
+          "rating": "broken"
         }
       ]
     },
