@@ -732,8 +732,8 @@ pub struct LaunchedCell {
     /// a name — two configurations, or two arms of one, read identically without it.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub gg_slot_models: BTreeMap<String, String>,
-    /// How many runs were enqueued for this cell — always the cell's whole shortfall,
-    /// never a partial cell.
+    /// How many runs were enqueued for this cell: its whole shortfall, or on a harness
+    /// with a parallelism cap, at most that harness's free slots.
     pub runs: u32,
     /// The enqueued jobs' ids, in queue order, so a console can follow them straight
     /// into its in-progress list.

@@ -42,6 +42,56 @@ pub struct SnapshotIndex {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub test_case_groups_key: Option<String>,
+    /// Where this snapshot's case showcases live (`<prefix>/case-showcases.json`):
+    /// the showcases of every non-experimental version of each case with a
+    /// published run, whichever version that run built.
+    /// Optional on the wire because it postdates the other keys: a reader of a
+    /// snapshot written before it previews a case from its case documents instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub case_showcases_key: Option<String>,
+}
+
+/// The case showcase file (`case-showcases.json`): the authored showcases of every
+/// non-experimental version of each case with a published run.
+///
+/// Gated on the **case** having a published run, not on the version: the gallery
+/// lists a case once any run of it is published, and a showcase is the case's own
+/// presentation, captured from its reference implementation, rather than anything
+/// a run produced. So a listed case previews its newest showcase even while its
+/// runs are on older versions, and a case with no published run uploads nothing
+/// the gallery would not show.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct CaseShowcasesFile {
+    pub schema_version: u32,
+    /// One entry per version declaring at least one showcase, ordered by slug and
+    /// then by version.
+    pub showcases: Vec<CaseVersionShowcases>,
+}
+
+/// One case version's showcases, as [`CaseShowcasesFile`] lists them.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct CaseVersionShowcases {
+    pub slug: String,
+    pub version: String,
+    /// Every variant of the version that declares a showcase, in manifest order —
+    /// the order a preview picks its first from.
+    pub variants: Vec<CaseVariantShowcase>,
+}
+
+/// One variant's showcase within [`CaseVersionShowcases`].
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct CaseVariantShowcase {
+    /// The variant's slug.
+    pub variant: String,
+    /// The description and the carousel, each entry naming its published key.
+    pub showcase: CaseShowcaseOut,
 }
 
 /// The gg document corpus file (`gg-runs.json`): every exported gg run as one flat map
@@ -362,6 +412,112 @@ pub struct SubjectOut {
     /// third-party-harness run and for a gg run assembled by hand.
     #[cfg_attr(feature = "contract", ts(optional = nullable))]
     pub gg_config_id: Option<String>,
+    /// A gg run's agents as the run log lists them beneath its row: one line per agent
+    /// profile the configuration declares, in the configuration's order (its primary,
+    /// root agent first), each with the tokens and cost the run spent on it.
+    ///
+    /// Built from the record's [session summary](crate::gg::GgSessionSummary) and the
+    /// capability set it ran whenever the card is built, so every recorded gg run
+    /// carries it with nothing stored beyond its record. `None` for every
+    /// third-party-harness run and for a gg run whose session wrote no summary.
+    #[cfg_attr(feature = "contract", ts(optional = nullable))]
+    pub gg_agents: Option<Vec<GgAgentOut>>,
+}
+
+/// One agent profile of a gg run, as its [card](SubjectOut::gg_agents) lists it.
+///
+/// Per profile rather than per running instance: how many instances of a profile a run
+/// starts is decided at run time and differs between runs of one configuration, so the
+/// line carries only whether the profile ran at all.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct GgAgentOut {
+    /// The profile's [slug](crate::gg::GgAgentConfig::slug), unique within the
+    /// configuration.
+    pub profile: String,
+    /// The profile's display name at launch.
+    pub name: String,
+    /// The models the profile's requests ran on, in first-seen order: normally one, more
+    /// when its binding was re-pointed during the run. The model the configuration bound
+    /// for a profile that never ran.
+    pub model_ids: Vec<String>,
+    /// Whether this is the configuration's primary (root) agent.
+    pub primary: bool,
+    /// Whether the run started the profile at all.
+    pub ran: bool,
+    /// The tokens the profile's requests spent, summed over its models.
+    pub tokens: crate::metrics::TokenCounts,
+    /// The cost of the profile's requests, summed over its models and priced at each
+    /// model's own price. A gg run's comparable cost prices the whole run at its primary
+    /// model, so the agents' costs need not sum to it.
+    pub cost: crate::metrics::Cost,
+}
+
+/// The [agent lines](SubjectOut::gg_agents) of a gg run that ran `set` and recorded
+/// `slot_costs`: one per profile `set` declares, in its order, then one per profile the
+/// costs name that `set` does not, so no spend goes unlisted.
+pub fn gg_agent_lines(
+    set: &crate::gg::GgCapabilitySet,
+    slot_costs: &[crate::gg::GgSlotCost],
+) -> Vec<GgAgentOut> {
+    use crate::metrics::{Cost, TokenCounts};
+
+    fn add(a: Option<f64>, b: Option<f64>) -> Option<f64> {
+        match (a, b) {
+            (None, None) => None,
+            (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
+        }
+    }
+
+    let root = set.agents.first().map(|agent| agent.slug.as_str());
+    let line = |profile: &str, name: &str, declared_model: Option<&str>| {
+        let costs: Vec<_> = slot_costs
+            .iter()
+            .filter(|slot| slot.profile_id == profile)
+            .collect();
+        let mut model_ids: Vec<String> = Vec::new();
+        let mut tokens = TokenCounts::default();
+        let mut cost = Cost::default();
+        for slot in &costs {
+            if !model_ids.contains(&slot.model_id) {
+                model_ids.push(slot.model_id.clone());
+            }
+            tokens = tokens.plus(slot.tokens);
+            if let Some(slot_cost) = slot.cost {
+                cost = Cost {
+                    comparable: add(cost.comparable, slot_cost.comparable),
+                    actual: add(cost.actual, slot_cost.actual),
+                };
+            }
+        }
+        if model_ids.is_empty()
+            && let Some(model) = declared_model
+        {
+            model_ids.push(model.to_string());
+        }
+        GgAgentOut {
+            profile: profile.to_string(),
+            name: name.to_string(),
+            model_ids,
+            primary: Some(profile) == root,
+            ran: !costs.is_empty(),
+            tokens,
+            cost,
+        }
+    };
+
+    let mut lines: Vec<GgAgentOut> = set
+        .agents
+        .iter()
+        .map(|agent| line(&agent.slug, &agent.name, Some(&agent.model_id)))
+        .collect();
+    for slot in slot_costs {
+        if !lines.iter().any(|known| known.profile == slot.profile_id) {
+            lines.push(line(&slot.profile_id, &slot.profile_id, None));
+        }
+    }
+    lines
 }
 
 impl SubjectOut {
@@ -386,6 +542,18 @@ impl SubjectOut {
                 .gg_capability_set
                 .as_ref()
                 .and_then(|set| set.preset_id.clone()),
+            // Gated on the harness like the configuration's name, so a set that somehow
+            // rode on another harness's record never lists agents for it.
+            gg_agents: match (
+                record.subject.harness_slug,
+                &record.subject.gg_capability_set,
+                &record.subject.gg_summary,
+            ) {
+                (crate::run_record::HarnessSlug::Gg, Some(set), Some(summary)) => {
+                    Some(gg_agent_lines(set, &summary.slot_costs))
+                }
+                _ => None,
+            },
         }
     }
 }
@@ -998,3 +1166,7 @@ pub struct CaseCheckOut {
     pub name: String,
     pub reference_view: String,
 }
+
+#[cfg(test)]
+#[path = "snapshot.test.rs"]
+mod tests;

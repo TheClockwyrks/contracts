@@ -18,7 +18,8 @@ pub struct BulkCancelOut {
     /// — the ones that had cost nothing.
     pub included_waiting: bool,
     /// Whether the sweep reached runs that were already executing (`dispatched`,
-    /// `starting`, `running`) — the ones whose work was discarded.
+    /// `starting`, `running`, `validating` or `storing`) — the ones whose work was
+    /// discarded.
     pub included_active: bool,
 }
 

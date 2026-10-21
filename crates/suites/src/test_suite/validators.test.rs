@@ -663,6 +663,7 @@ fn a_run_stopped_at_its_cap_leaves_every_requirement_undecided() {
         "sleep 30",
         Caps {
             suite: Duration::from_millis(300),
+            check: None,
             install: Duration::from_millis(300),
         },
     );
