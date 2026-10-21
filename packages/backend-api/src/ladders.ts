@@ -717,9 +717,9 @@ export type LadderDispatchSummary = {
  */
 export type LadderStopInput = {
   /**
-   * Whether to cancel the dispatch's `dispatched`, `starting` and `running` jobs as
-   * well as its waiting ones. Those are partly or wholly paid for, so a client
-   * confirms first.
+   * Whether to cancel the dispatch's `dispatched`, `starting`, `running`,
+   * `validating` and `storing` jobs as well as its waiting ones. Those are partly or
+   * wholly paid for, so a client confirms first.
    */
   cancelRunning: boolean;
 };

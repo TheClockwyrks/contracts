@@ -137,7 +137,8 @@ fn main() -> Result<()> {
             reexports: &[],
             file: "snapshot.ts",
             decls: ts_decls![&cfg;
-                snap::SnapshotIndex, snap::SubjectOut, snap::LinksOut, snap::RunSummary,
+                snap::SnapshotIndex, snap::SubjectOut, snap::GgAgentOut, snap::LinksOut,
+                snap::RunSummary,
                 snap::RunScoreOut, snap::PerformanceSummaryOut, snap::CodeSummaryOut,
                 snap::RunsIndex, snap::RunProofOut,
                 snap::RunAssetOut, snap::RunValidationMediaOut, snap::RunShowcaseOut, snap::PerRun,
@@ -150,7 +151,8 @@ fn main() -> Result<()> {
                 snap::CasePackageOut, snap::CaseReferenceSheetOut,
                 snap::CaseShowcaseMediaOut, snap::CaseShowcaseOut, snap::CaseWorkspaceFileOut,
                 snap::CaseVariantRenderingOut, snap::CaseVariantOut,
-                snap::CaseMetadata,
+                snap::CaseMetadata, snap::CaseShowcasesFile, snap::CaseVersionShowcases,
+                snap::CaseVariantShowcase,
                 snap::ModelCatalogFile,
                 snap::TestCaseGroupsFile,
                 snap::ComparisonsIndex, snap::ComparisonFile,
@@ -514,6 +516,10 @@ fn main() -> Result<()> {
         anon(
             "snapshot/case.schema.json",
             root_schema::<snap::CaseMetadata>(),
+        ),
+        anon(
+            "snapshot/case-showcases.schema.json",
+            root_schema::<snap::CaseShowcasesFile>(),
         ),
     ];
     for (rel_path, value) in finalize_schemas(docs, &contract_schema_docs())? {

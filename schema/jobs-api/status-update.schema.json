@@ -10,7 +10,12 @@
         },
         {
           "const": "running",
-          "description": "Execution has begun.",
+          "description": "Execution has begun: setup has finished and the harness session is about to\nstart.",
+          "type": "string"
+        },
+        {
+          "const": "validating",
+          "description": "The harness session has ended and the driver is doing the work after it,\nbefore it hands the run to durable storage: collecting the tree, deleting the\nsandbox, the post-run analysis, the case's toolchain and validation. Reported\nonce, after the session's last event; the next report is the held\n[`Storing`](Self::Storing) one.",
           "type": "string"
         },
         {

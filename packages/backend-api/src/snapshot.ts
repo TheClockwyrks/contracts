@@ -12,12 +12,14 @@ import type { Review } from "./review";
 import type {
   AssetKind,
   AssetSheet,
+  CostMetrics,
   HarnessSlug,
   MediaKind,
   RunMetrics,
   RunRecord,
   RunState,
   TestType,
+  TokenMetrics,
 } from "@clockwyrks/run-record";
 import type {
   CodeAuthoredBasis,
@@ -75,6 +77,14 @@ export type SnapshotIndex = {
    * none, and a reader treats the absent key as an empty group set.
    */
   testCaseGroupsKey?: string;
+  /**
+   * Where this snapshot's case showcases live (`<prefix>/case-showcases.json`):
+   * the showcases of every non-experimental version of each case with a
+   * published run, whichever version that run built.
+   * Optional on the wire because it postdates the other keys: a reader of a
+   * snapshot written before it previews a case from its case documents instead.
+   */
+  caseShowcasesKey?: string;
 };
 
 /**
@@ -128,6 +138,60 @@ export type SubjectOut = {
    * third-party-harness run and for a gg run assembled by hand.
    */
   ggConfigId?: string | null;
+  /**
+   * A gg run's agents as the run log lists them beneath its row: one line per agent
+   * profile the configuration declares, in the configuration's order (its primary,
+   * root agent first), each with the tokens and cost the run spent on it.
+   *
+   * Built from the record's [session summary](crate::gg::GgSessionSummary) and the
+   * capability set it ran whenever the card is built, so every recorded gg run
+   * carries it with nothing stored beyond its record. `None` for every
+   * third-party-harness run and for a gg run whose session wrote no summary.
+   */
+  ggAgents?: Array<GgAgentOut> | null;
+};
+
+/**
+ * One agent profile of a gg run, as its [card](SubjectOut::gg_agents) lists it.
+ *
+ * Per profile rather than per running instance: how many instances of a profile a run
+ * starts is decided at run time and differs between runs of one configuration, so the
+ * line carries only whether the profile ran at all.
+ */
+export type GgAgentOut = {
+  /**
+   * The profile's [slug](crate::gg::GgAgentConfig::slug), unique within the
+   * configuration.
+   */
+  profile: string;
+  /**
+   * The profile's display name at launch.
+   */
+  name: string;
+  /**
+   * The models the profile's requests ran on, in first-seen order: normally one, more
+   * when its binding was re-pointed during the run. The model the configuration bound
+   * for a profile that never ran.
+   */
+  modelIds: Array<string>;
+  /**
+   * Whether this is the configuration's primary (root) agent.
+   */
+  primary: boolean;
+  /**
+   * Whether the run started the profile at all.
+   */
+  ran: boolean;
+  /**
+   * The tokens the profile's requests spent, summed over its models.
+   */
+  tokens: TokenMetrics;
+  /**
+   * The cost of the profile's requests, summed over its models and priced at each
+   * model's own price. A gg run's comparable cost prices the whole run at its primary
+   * model, so the agents' costs need not sum to it.
+   */
+  cost: CostMetrics;
 };
 
 /**
@@ -988,6 +1052,53 @@ export type CaseMetadata = {
    * snapshot written before this field existed still loads.
    */
   errata: Array<CaseErratumOut>;
+};
+
+/**
+ * The case showcase file (`case-showcases.json`): the authored showcases of every
+ * non-experimental version of each case with a published run.
+ *
+ * Gated on the **case** having a published run, not on the version: the gallery
+ * lists a case once any run of it is published, and a showcase is the case's own
+ * presentation, captured from its reference implementation, rather than anything
+ * a run produced. So a listed case previews its newest showcase even while its
+ * runs are on older versions, and a case with no published run uploads nothing
+ * the gallery would not show.
+ */
+export type CaseShowcasesFile = {
+  schemaVersion: number;
+  /**
+   * One entry per version declaring at least one showcase, ordered by slug and
+   * then by version.
+   */
+  showcases: Array<CaseVersionShowcases>;
+};
+
+/**
+ * One case version's showcases, as [`CaseShowcasesFile`] lists them.
+ */
+export type CaseVersionShowcases = {
+  slug: string;
+  version: string;
+  /**
+   * Every variant of the version that declares a showcase, in manifest order —
+   * the order a preview picks its first from.
+   */
+  variants: Array<CaseVariantShowcase>;
+};
+
+/**
+ * One variant's showcase within [`CaseVersionShowcases`].
+ */
+export type CaseVariantShowcase = {
+  /**
+   * The variant's slug.
+   */
+  variant: string;
+  /**
+   * The description and the carousel, each entry naming its published key.
+   */
+  showcase: CaseShowcaseOut;
 };
 
 /**

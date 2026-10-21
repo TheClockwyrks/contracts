@@ -47,6 +47,7 @@ pub mod run_record;
 pub mod showcase;
 pub mod test_case;
 pub mod test_suite;
+pub mod tool_tally;
 pub mod toolchain;
 pub mod validation;
 

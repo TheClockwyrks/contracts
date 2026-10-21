@@ -224,8 +224,15 @@ pub enum DriverState {
     /// the container runtime, materializing the served definition) — the run is not
     /// yet executing the harness, but it will as soon as setup finishes.
     Starting,
-    /// Execution has begun.
+    /// Execution has begun: setup has finished and the harness session is about to
+    /// start.
     Running,
+    /// The harness session has ended and the driver is doing the work after it,
+    /// before it hands the run to durable storage: collecting the tree, deleting the
+    /// sandbox, the post-run analysis, the case's toolchain and validation. Reported
+    /// once, after the session's last event; the next report is the held
+    /// [`Storing`](Self::Storing) one.
+    Validating,
     /// The held report: the run is over and the driver is handing its result to
     /// durable storage. The update carries the record (and the failure `detail` when
     /// the run failed), which the backend stores against the job before it answers;
@@ -366,8 +373,12 @@ pub enum JobState {
     /// container runtime, materializing the definition) — not yet executing the
     /// harness, but it will as soon as setup finishes.
     Starting,
-    /// The driver is executing the run.
+    /// The driver is executing the run's harness session: the model is working.
     Running,
+    /// The harness session has ended and the driver is doing the post-session work
+    /// (collecting the tree, the post-run analysis, the case's toolchain and
+    /// validation). Still in flight and driven exactly like `running`.
+    Validating,
     /// The run is over and the driver is handing its result to durable storage: the
     /// backend holds the run's record (the held report) while the driver uploads the
     /// run tree and the bundle. Not terminal.
@@ -389,6 +400,7 @@ impl JobState {
             "dispatched" => Self::Dispatched,
             "starting" => Self::Starting,
             "running" => Self::Running,
+            "validating" => Self::Validating,
             "storing" => Self::Storing,
             "succeeded" => Self::Succeeded,
             "failed" => Self::Failed,

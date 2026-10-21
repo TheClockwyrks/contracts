@@ -213,6 +213,22 @@ fn a_storing_job_is_read_from_the_database_and_is_not_terminal() {
 }
 
 #[test]
+fn a_validating_job_is_in_flight() {
+    assert_eq!(JobState::from_db("validating"), JobState::Validating);
+    assert!(!JobState::Validating.is_terminal());
+    assert_eq!(
+        serde_json::to_value(JobState::Validating).unwrap(),
+        "validating"
+    );
+    assert_eq!(
+        serde_json::to_value(DriverState::Validating).unwrap(),
+        "validating"
+    );
+    let parsed: DriverState = serde_json::from_str(r#""validating""#).unwrap();
+    assert!(matches!(parsed, DriverState::Validating));
+}
+
+#[test]
 fn an_active_job_carries_its_lease_expiry_only_when_it_holds_one() {
     let mut job = ActiveJobOut {
         run_id: "j1".into(),

@@ -106,10 +106,8 @@ pub struct ComparisonArm {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub model_id: Option<String>,
-    /// The gg [configuration](crate::gg) this arm runs, for a gg-configuration arm —
-    /// the launcher's key for it (`builtin:<name>` for a shared built-in,
-    /// `saved:<id>` for one registered on the account), so a built-in is as usable
-    /// as an account's own.
+    /// The saved gg [configuration](crate::gg) this arm runs, for a gg-configuration
+    /// arm: the launcher's key for it, `saved:<id>`, or the bare id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub gg_config_id: Option<String>,
@@ -119,28 +117,6 @@ pub struct ComparisonArm {
     /// a single [`model_id`](Self::model_id).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub gg_slot_models: BTreeMap<String, String>,
-    /// The ids of the runs launched for this arm, in launch order. Aggregation reads
-    /// exactly these runs, so an arm's membership is explicit and unambiguous — the
-    /// only reliable way to tell two gg arms apart (they can share a root model but
-    /// differ in capability set, which no run tuple distinguishes).
-    ///
-    /// Each is the id a launch handed back, which is a **job** id; the backend
-    /// resolves it to the run that job stands for (docs/comparisons/experiments.md,
-    /// "Which runs an arm holds").
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub run_ids: Vec<String>,
-}
-
-impl ComparisonArm {
-    /// Whether `other` launches the same runs as this arm: the same harness and model,
-    /// or the same gg configuration and slot models. The label and the recorded runs
-    /// are not part of it.
-    pub fn same_launch_identity(&self, other: &ComparisonArm) -> bool {
-        self.harness_slug == other.harness_slug
-            && self.model_id == other.model_id
-            && self.gg_config_id == other.gg_config_id
-            && self.gg_slot_models == other.gg_slot_models
-    }
 }
 
 /// The stored configuration of a comparison: its controls, the dimension it varies,
@@ -167,9 +143,7 @@ pub struct ComparisonConfig {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct ArmRunPoint {
-    /// The stored run's own id, which is the id the run's page is addressed by. It
-    /// differs from the id the arm [recorded](ComparisonArm::run_ids), which names
-    /// the job that produced the run.
+    /// The run's id, which is the id the run's page is addressed by.
     pub run_id: String,
     /// The run's comparable cost (USD).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -250,33 +224,34 @@ pub struct Confound {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct ComparisonArmResult {
-    /// The arm this result is for (carries its identity and run ids).
+    /// The arm this result is for.
     pub arm: ComparisonArm,
     /// The desired sample size (from [`ComparisonConfig::n`]), echoed for display.
     pub n_desired: u32,
-    /// The number of the arm's **counted** runs that have landed: the runs its
-    /// statistics are computed from.
-    pub n_observed: usize,
-    /// The arm's recorded [run ids](ComparisonArm::run_ids) that the arm **holds**:
-    /// each one still in flight, or resolved to a stored run that counts toward `n`
-    /// (docs/comparisons/experiments.md, "Which runs an arm holds"). In the arm's
-    /// launch order.
+    /// The ids of the runs the arm **holds**: the first `n` counted runs of the arm's
+    /// coverage cell to finish, whoever launched them, in the order they finished
+    /// (docs/comparisons/experiments.md, "Which runs an arm holds").
     ///
-    /// This is the count a "trigger missing runs" tops up against, and neither figure
-    /// beside it can serve. [`ComparisonArm::run_ids`] records every run ever
-    /// launched, so an arm whose runs were deleted, canceled or failed on
-    /// infrastructure would keep counting them and never be topped up again.
-    /// [`n_observed`](Self::n_observed) counts only the runs whose record has landed,
-    /// so topping up against it relaunches every run still in flight.
-    ///
-    /// Always serialized, empty array included: an arm with no live runs and a backend
-    /// that predates the field are different answers, and a console can only tell them
-    /// apart if "none are live" arrives as `[]` rather than as a missing key. The
-    /// TypeScript type stays optional so a console still reads a record written by an
-    /// older backend, which is the one case where the key is genuinely absent.
+    /// What a "trigger missing runs" tops up against, with
+    /// [`in_flight`](Self::in_flight) beside it.
     #[serde(default)]
-    #[cfg_attr(feature = "contract", ts(optional = nullable))]
-    pub live_run_ids: Vec<String>,
+    pub run_ids: Vec<String>,
+    /// The jobs of the arm's cell in flight, whoever launched them, up to what the arm
+    /// still needs: `n` less [`run_ids`](Self::run_ids). An arm holding `n` runs reads
+    /// none.
+    #[serde(default)]
+    pub in_flight: u32,
+    /// The number of held runs whose record this build can read: the runs the arm's
+    /// statistics are computed from. Below `run_ids.len()` only when a held run's record
+    /// no longer decodes.
+    pub n_observed: usize,
+    /// Why the arm cannot be launched now, or `None` when it can: a gg configuration
+    /// that is gone, leaves a launch slot unbound, or imports a saved agent edited since
+    /// it was last saved, whose launches would land in another cell. The arm keeps the
+    /// runs its cell holds, and nothing is launched for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub unlaunchable: Option<String>,
     /// The comparable-cost (USD) distribution across the arm's runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
@@ -341,8 +316,7 @@ pub struct Comparison {
     pub config: ComparisonConfig,
     /// The computed per-arm results, in the config's arm order.
     pub arms: Vec<ComparisonArmResult>,
-    /// Whether every arm holds `n` counted runs and none in flight
-    /// (`is_complete`).
+    /// Whether every arm holds `n` runs (`is_complete`).
     #[serde(default)]
     pub complete: bool,
 }

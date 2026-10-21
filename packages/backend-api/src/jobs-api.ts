@@ -23,6 +23,7 @@ import type {
 export type DriverState =
   | "starting"
   | "running"
+  | "validating"
   | "storing"
   | "succeeded"
   | "failed"
@@ -324,6 +325,7 @@ export type JobState =
   | "dispatched"
   | "starting"
   | "running"
+  | "validating"
   | "storing"
   | "succeeded"
   | "failed"
@@ -598,7 +600,8 @@ export type BulkCancelOut = {
   includedWaiting: boolean;
   /**
    * Whether the sweep reached runs that were already executing (`dispatched`,
-   * `starting`, `running`) — the ones whose work was discarded.
+   * `starting`, `running`, `validating` or `storing`) — the ones whose work was
+   * discarded.
    */
   includedActive: boolean;
 };

@@ -583,9 +583,9 @@ pub struct LadderDispatchSummary {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct LadderStopInput {
-    /// Whether to cancel the dispatch's `dispatched`, `starting` and `running` jobs as
-    /// well as its waiting ones. Those are partly or wholly paid for, so a client
-    /// confirms first.
+    /// Whether to cancel the dispatch's `dispatched`, `starting`, `running`,
+    /// `validating` and `storing` jobs as well as its waiting ones. Those are partly or
+    /// wholly paid for, so a client confirms first.
     #[serde(default)]
     pub cancel_running: bool,
 }
