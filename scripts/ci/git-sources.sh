@@ -31,10 +31,29 @@ while read -r azure public; do
 done <<'SOURCES'
 https://dev.azure.com/genyume/the-test-cabinet/_git/contracts https://github.com/TheClockwyrks/contracts
 https://dev.azure.com/genyume/the-test-cabinet/_git/engines https://github.com/TheClockwyrks/engines
+https://dev.azure.com/genyume/the-test-cabinet/_git/ui-common https://github.com/TheClockwyrks/ui-common
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-model-core https://github.com/TheClockwyrks/tool-model-core
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-sprite https://github.com/TheClockwyrks/tool-sprite
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-paint https://github.com/TheClockwyrks/tool-paint
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-voxel https://github.com/TheClockwyrks/tool-voxel
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-mc https://github.com/TheClockwyrks/tool-mc
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-sn https://github.com/TheClockwyrks/tool-sn
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-dc https://github.com/TheClockwyrks/tool-dc
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-particle https://github.com/TheClockwyrks/tool-particle
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-audio-core https://github.com/TheClockwyrks/tool-audio-core
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-sfx-synth https://github.com/TheClockwyrks/tool-sfx-synth
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-sfx-sample https://github.com/TheClockwyrks/tool-sfx-sample
+https://dev.azure.com/genyume/the-test-cabinet/_git/tool-music https://github.com/TheClockwyrks/tool-music
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-backend https://github.com/TheClockwyrks/microservice-backend
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-dispatcher https://github.com/TheClockwyrks/microservice-dispatcher
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-driver https://github.com/TheClockwyrks/microservice-driver
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-artifacts https://github.com/TheClockwyrks/microservice-artifacts
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-repos https://github.com/TheClockwyrks/microservice-repos
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-publisher https://github.com/TheClockwyrks/microservice-publisher
+https://dev.azure.com/genyume/the-test-cabinet/_git/microservice-arena https://github.com/TheClockwyrks/microservice-arena
 https://dev.azure.com/genyume/the-test-cabinet/_git/gg https://github.com/TheClockwyrks/gg
-https://dev.azure.com/genyume/the-test-cabinet/_git/platform https://github.com/TheClockwyrks/platform
-https://dev.azure.com/genyume/the-test-cabinet/_git/web https://github.com/TheClockwyrks/web
 https://dev.azure.com/genyume/the-test-cabinet/_git/the-spec-cabinet https://github.com/TheClockwyrks/the-spec-cabinet
+https://dev.azure.com/genyume/the-test-cabinet/_git/client-tauri https://github.com/TheClockwyrks/client-tauri
 SOURCES
 
 echo "git-sources: ${count} public sources fetch from Azure"
