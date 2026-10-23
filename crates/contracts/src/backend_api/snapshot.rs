@@ -610,10 +610,10 @@ pub struct PerRun {
     /// the bytes — and a *re-analysis under a newer generation* mints a different key
     /// rather than silently overwriting figures a published snapshot still points at.
     ///
-    /// `None` when the run was never analysed, and also when it was but the document's
-    /// bytes are no longer readable (the backend store is ephemeral) — the bounded summary
-    /// on the record survives either way, so the tab degrades to the figures instead of
-    /// offering a link that 404s.
+    /// `None` when the run was never analysed, and also when it was but the run's tree on
+    /// the artifacts service holds no readable document (the tree was never stored, or has
+    /// been reclaimed) — the bounded summary on the record survives either way, so the tab
+    /// degrades to the figures instead of offering a link that 404s.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub code_analysis_key: Option<String>,
