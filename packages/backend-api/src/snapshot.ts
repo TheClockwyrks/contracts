@@ -200,6 +200,12 @@ export type GgAgentOut = {
 export type LinksOut = {
   sourceRepo: string | null;
   playableBuild: string | null;
+  /**
+   * The run's short code (see `RunLinks`), which the
+   * `tcab.ai` share links resolve through `codes/<code>`. Absent until the
+   * run's first publish.
+   */
+  code?: string;
 };
 
 /**

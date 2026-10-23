@@ -273,6 +273,10 @@
     "LinksOut": {
       "description": "A run's outbound links as the snapshot carries them.",
       "properties": {
+        "code": {
+          "description": "The run's short code (see `RunLinks`), which the\n`tcab.ai` share links resolve through `codes/<code>`. Absent until the\nrun's first publish.",
+          "type": ["string", "null"]
+        },
         "playableBuild": {
           "type": ["string", "null"]
         },

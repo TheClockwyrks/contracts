@@ -97,6 +97,7 @@ fn sample_record() -> RunRecord {
         links: RunLinks {
             source_repo: Some("https://example.com/repo".to_string()),
             playable_build: None,
+            code: None,
         },
         status: RunStatus {
             state: RunState::Completed,
@@ -588,4 +589,25 @@ fn run_state_publishes_artifacts() {
     assert!(!RunState::Infrastructure.publishes_artifacts());
     // A killed run releases nothing either: it never reached an outcome.
     assert!(!RunState::Canceled.publishes_artifacts());
+}
+
+/// A run's short code rides its links once minted and is omitted before, so a
+/// record stored before codes existed reads back with none.
+#[test]
+fn run_links_carry_the_short_code_only_once_minted() {
+    let minted = RunLinks {
+        source_repo: None,
+        playable_build: None,
+        code: Some("d483a2f9".to_string()),
+    };
+    let value = serde_json::to_value(&minted).unwrap();
+    assert_eq!(value["code"], "d483a2f9");
+    assert_eq!(serde_json::from_value::<RunLinks>(value).unwrap(), minted);
+
+    let unminted = serde_json::to_value(RunLinks::default()).unwrap();
+    assert!(unminted.get("code").is_none());
+    let legacy: RunLinks =
+        serde_json::from_value(serde_json::json!({ "sourceRepo": null, "playableBuild": null }))
+            .unwrap();
+    assert_eq!(legacy.code, None);
 }
