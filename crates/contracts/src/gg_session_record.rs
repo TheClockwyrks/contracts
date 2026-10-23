@@ -53,15 +53,14 @@
 //! (`schema/gg/session-record.schema.json`) are generated from them by
 //! `crates/contract-codegen` and are never edited by hand. JSON is camelCase.
 //!
-//! Four names keep the word this record used to be called by: the in-container journal's
+//! Three names keep the word this record used to be called by: the in-container journal's
 //! [`.gg/replay.ndjson`](crate::gg_session_journal::GG_SESSION_JOURNAL_PATH), the run tree's
-//! `replay.json.gz`, the backend's `replay` artifact slot and the `GET /runs/{id}/replay`
-//! route. They are **addresses**, not names: every record already in object storage is filed
-//! under them, the driver in a released image posts to that route, and a released `gg` binary
-//! writes its journal at that path for a host of this version to salvage. Renaming an address
-//! 404s the runs stored at it, or leaves a hung run's journal unfound. The generated bindings and
-//! schema above are not addresses — they are rewritten from these types on every build, and they
-//! say what the record is.
+//! `replay.json.gz` and the artifacts service's `GET /runs/{id}/replay` route, which serves it
+//! from the tree. They are **addresses**, not names: every record already in object storage is
+//! filed under them, and a released `gg` binary writes its journal at that path for a host of
+//! this version to salvage. Renaming an address 404s the runs stored at it, or leaves a hung
+//! run's journal unfound. The generated bindings and schema above are not addresses — they are
+//! rewritten from these types on every build, and they say what the record is.
 
 use std::collections::{BTreeMap, HashMap};
 
