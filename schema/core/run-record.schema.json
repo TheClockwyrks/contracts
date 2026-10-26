@@ -1730,6 +1730,10 @@
     "RunLinks": {
       "description": "Links to a run's published outputs.",
       "properties": {
+        "code": {
+          "description": "The run's short code, assigned the first time it publishes: the shortest\nprefix of the run id, at least eight characters long, that no published\nrun already holds. Never reassigned; the run's share links are built from\nit. `None` until the run's first publish.",
+          "type": ["string", "null"]
+        },
         "playableBuild": {
           "description": "The playable build, when one has been published.",
           "type": ["string", "null"]
