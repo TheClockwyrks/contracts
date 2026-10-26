@@ -62,19 +62,17 @@ pub use catalog::CODE_METRICS;
 /// file there would read as code the model wrote — and, uniquely for this artifact, would
 /// then be *measured* by the next analysis of the same tree. The root is also what the
 /// run-tree artifact convention (`test_cabinet_driver::post_run`) names: `<name>.json.gz`
-/// here, mirrored into the backend store as opaque bytes under [`CODE_ANALYSIS_ARTIFACT`]
-/// and served back content-negotiated.
+/// here, under [`CODE_ANALYSIS_ARTIFACT`], which the artifacts service serves from the run's
+/// tree as `GET /runs/{id}/code-analysis`.
 pub const CODE_ANALYSIS_TREE_ARTIFACT: &str = "code-analysis.json.gz";
 
 /// The artifact **name** the code-analysis document is stored and served under.
 ///
-/// One constant, because the same string is the backend store slot
-/// (`runs/<id>/code-analysis.json`), the route segment (`/runs/{id}/code-analysis`) and
-/// the stem of [`CODE_ANALYSIS_TREE_ARTIFACT`] — the convention only holds if the three
-/// cannot drift apart. The gg session record's equivalent is `REPLAY_ARTIFACT`, which
-/// lives in the backend store because nothing outside it names the slot; this one is in
-/// the contract because the *writer* (the analyzer stage, in another crate) and the
-/// *mirror* (the driver) both have to agree with the store on it.
+/// One constant, because the same string is the artifacts service's route segment
+/// (`/runs/{id}/code-analysis`) and the stem of [`CODE_ANALYSIS_TREE_ARTIFACT`] — the
+/// convention only holds if the two cannot drift apart. It is in the contract because the
+/// *writer* (the analyzer stage, in another crate) and the *server* (the artifacts service)
+/// both have to agree on it.
 pub const CODE_ANALYSIS_ARTIFACT: &str = "code-analysis";
 
 /// The analyzer **generation** every result is stamped with.
