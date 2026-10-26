@@ -196,6 +196,153 @@ pub struct TournamentRecord {
     pub matches: Vec<MatchSummary>,
 }
 
+/// Where a recorded tournament is in its lifecycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub enum TournamentState {
+    /// Recorded, with no arena playing it yet.
+    Queued,
+    /// An arena is playing its pairings.
+    Running,
+    /// Every pairing has a recorded result, and the standings are recorded.
+    Succeeded,
+    /// It cannot complete; the recorded tournament's `detail` carries the reason.
+    Failed,
+}
+
+impl TournamentState {
+    /// The wire spelling, which is also the backend's stored value.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+        }
+    }
+
+    /// Parse the wire spelling.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "queued" => Some(Self::Queued),
+            "running" => Some(Self::Running),
+            "succeeded" => Some(Self::Succeeded),
+            "failed" => Some(Self::Failed),
+            _ => None,
+        }
+    }
+
+    /// Whether the tournament has finished, successfully or not.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Succeeded | Self::Failed)
+    }
+}
+
+/// One pairing of a tournament's field: a match recorded before it is played.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct TournamentPairing {
+    /// The match id, [`match_id`] of the two seats.
+    pub match_id: String,
+    /// The controller that plays Red.
+    pub red_id: String,
+    /// The controller that plays Blue.
+    pub blue_id: String,
+}
+
+/// A tournament as the arena records it on acceptance: the field and every
+/// pairing, with no result. (`PUT /tournaments/{id}`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct PendingTournament {
+    /// Unique tournament id (caller-assigned).
+    pub id: String,
+    /// RFC 3339 timestamp the tournament was accepted at.
+    pub created_at: String,
+    /// The test case the field competes under.
+    pub test_case_slug: String,
+    /// The exact case version.
+    pub test_case_version: String,
+    /// The case variant the canonical match uses.
+    pub variant: String,
+    /// The competing controllers (identity only, no bytes).
+    pub participants: Vec<ControllerRef>,
+    /// Every match of the field, in the order it is played.
+    pub pairings: Vec<TournamentPairing>,
+}
+
+/// A tournament as the backend holds it, in any state. (`GET /tournaments/{id}`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub struct RecordedTournament {
+    /// The record. Its `matches` holds the summary of each pairing with a
+    /// recorded result, in pairing order, and its `standings` are empty until the
+    /// tournament succeeds.
+    pub record: TournamentRecord,
+    /// Where the tournament is in its lifecycle.
+    pub state: TournamentState,
+    /// The failure reason, present when `state` is `failed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub detail: Option<String>,
+    /// Every match of the field, in the order it is played.
+    pub pairings: Vec<TournamentPairing>,
+    /// RFC 3339 of when the tournament was recorded, and once it succeeds, of when
+    /// it succeeded. The gallery's newest-first order.
+    pub published_at: String,
+}
+
+impl RecordedTournament {
+    /// The pairings without a recorded result, in pairing order.
+    pub fn unplayed_pairings(&self) -> Vec<TournamentPairing> {
+        self.pairings
+            .iter()
+            .filter(|pairing| {
+                !self
+                    .record
+                    .matches
+                    .iter()
+                    .any(|summary| summary.match_id == pairing.match_id)
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+/// A move of a recorded tournament's state. (`POST /tournaments/{id}/state`)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+#[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
+pub enum TournamentTransition {
+    /// An arena has started playing the tournament.
+    Running,
+    /// Every pairing has a result; these are the standings they come to.
+    Succeeded {
+        /// The standings, ranked by wins, highest first.
+        standings: Vec<Standing>,
+    },
+    /// The tournament cannot complete.
+    Failed {
+        /// Why.
+        detail: String,
+    },
+}
+
+impl TournamentTransition {
+    /// The state this transition moves to.
+    pub fn state(&self) -> TournamentState {
+        match self {
+            Self::Running => TournamentState::Running,
+            Self::Succeeded { .. } => TournamentState::Succeeded,
+            Self::Failed { .. } => TournamentState::Failed,
+        }
+    }
+}
+
 /// The stable match id (and replay storage segment) for a pair.
 pub fn match_id(red_id: &str, blue_id: &str) -> String {
     format!("{red_id}__vs__{blue_id}")

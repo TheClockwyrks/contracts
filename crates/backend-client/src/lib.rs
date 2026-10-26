@@ -32,7 +32,9 @@ pub use crate::access::{
     LOCAL_IDENTITY_HEADER,
 };
 pub use crate::error::{Error, Result};
-use test_cabinet_contracts::match_play::{ControllerRef, TournamentRecord};
+use test_cabinet_contracts::match_play::{
+    ControllerRef, MatchSummary, PendingTournament, RecordedTournament, TournamentTransition,
+};
 use test_cabinet_contracts::review::FailureCap;
 use test_cabinet_contracts::run_record::PriorGameJamEntry;
 use test_cabinet_contracts::test_case::{
@@ -171,29 +173,81 @@ pub trait BackendClient: Send + Sync {
         Ok(Vec::new())
     }
 
-    /// Publish an adversarial tournament's record (standings + per-match
-    /// summaries). (`POST /tournaments`) Idempotent on `record.id`. The per-match
-    /// replays are uploaded separately via [`Self::publish_tournament_match`].
+    /// Record a pending tournament: its field and every pairing, with no result.
+    /// (`PUT /tournaments/{id}`) A repeat with identical content changes nothing.
     ///
-    /// Defaults to a no-op so a backend without tournament support (or a test stub)
-    /// stays valid; the HTTP client overrides it.
-    async fn publish_tournament(&self, _record: &TournamentRecord) -> Result<()> {
-        Ok(())
+    /// Defaults to an error so a client without tournament support is explicit
+    /// about not recording one; the HTTP client overrides it.
+    async fn record_pending_tournament(&self, tournament: &PendingTournament) -> Result<()> {
+        Err(Error::Publish(format!(
+            "this backend client cannot record tournament `{}`",
+            tournament.id
+        )))
     }
 
-    /// Upload one tournament match's replay JSON, served back for browser playback.
+    /// Store one tournament match's replay JSON, served back for browser playback.
     /// (`POST /tournaments/{id}/matches/{matchId}/replay.json`) Idempotent:
-    /// identical bytes overwrite.
+    /// identical bytes overwrite. A match's replay is stored before its summary is
+    /// recorded with [`Self::record_tournament_match`].
     ///
-    /// Defaults to a no-op so a backend without tournament support (or a test stub)
-    /// stays valid; the HTTP client overrides it.
-    async fn publish_tournament_match(
+    /// Defaults to an error, as [`Self::record_pending_tournament`] does.
+    async fn record_tournament_replay(
         &self,
-        _tournament_id: &str,
-        _match_id: &str,
+        tournament_id: &str,
+        match_id: &str,
         _bytes: Vec<u8>,
     ) -> Result<()> {
-        Ok(())
+        Err(Error::Publish(format!(
+            "this backend client cannot store the replay of match `{match_id}` of tournament \
+             `{tournament_id}`"
+        )))
+    }
+
+    /// Record one pairing's result. (`PUT /tournaments/{id}/matches/{matchId}`)
+    ///
+    /// Defaults to an error, as [`Self::record_pending_tournament`] does.
+    async fn record_tournament_match(
+        &self,
+        tournament_id: &str,
+        summary: &MatchSummary,
+    ) -> Result<()> {
+        Err(Error::Publish(format!(
+            "this backend client cannot record match `{}` of tournament `{tournament_id}`",
+            summary.match_id
+        )))
+    }
+
+    /// Move a recorded tournament's state. (`POST /tournaments/{id}/state`)
+    ///
+    /// Defaults to an error, as [`Self::record_pending_tournament`] does.
+    async fn transition_tournament(
+        &self,
+        tournament_id: &str,
+        _transition: &TournamentTransition,
+    ) -> Result<()> {
+        Err(Error::Publish(format!(
+            "this backend client cannot move tournament `{tournament_id}`"
+        )))
+    }
+
+    /// One recorded tournament in any state, or `None` when the backend records
+    /// none under `tournament_id`. (`GET /tournaments/{id}`)
+    ///
+    /// Defaults to an error, as [`Self::record_pending_tournament`] does.
+    async fn recorded_tournament(&self, tournament_id: &str) -> Result<Option<RecordedTournament>> {
+        Err(Error::Publish(format!(
+            "this backend client cannot read tournament `{tournament_id}`"
+        )))
+    }
+
+    /// Every `queued` and `running` tournament, oldest first: the ones an arena
+    /// resumes on start. (`GET /tournaments/unfinished`)
+    ///
+    /// Defaults to an error, as [`Self::record_pending_tournament`] does.
+    async fn unfinished_tournaments(&self) -> Result<Vec<RecordedTournament>> {
+        Err(Error::Publish(
+            "this backend client cannot list unfinished tournaments".to_string(),
+        ))
     }
 
     /// The gameplay READMEs of earlier game-jam runs of jam `slug` built by
@@ -501,18 +555,17 @@ impl BackendClient for HttpBackendClient {
     }
 
     #[instrument(
-        skip(self, record),
-        fields(otel.kind = "client", http.request.method = "POST", tournament.id = %record.id),
+        skip(self, tournament),
+        fields(otel.kind = "client", http.request.method = "PUT", tournament.id = %tournament.id),
         err,
     )]
-    async fn publish_tournament(&self, record: &TournamentRecord) -> Result<()> {
-        let url = self.url("/tournaments");
-        let headers = self.headers();
+    async fn record_pending_tournament(&self, tournament: &PendingTournament) -> Result<()> {
+        let url = self.url(&format!("/tournaments/{}", encode(&tournament.id)));
         let response = self
             .http
-            .post(&url)
-            .headers(headers)
-            .json(record)
+            .put(&url)
+            .headers(self.headers())
+            .json(tournament)
             .send()
             .await
             .map_err(|err| backend_err(&url, err))?;
@@ -525,7 +578,7 @@ impl BackendClient for HttpBackendClient {
         fields(otel.kind = "client", http.request.method = "POST", tournament.id = %tournament_id, match.id = %match_id),
         err,
     )]
-    async fn publish_tournament_match(
+    async fn record_tournament_replay(
         &self,
         tournament_id: &str,
         match_id: &str,
@@ -536,11 +589,10 @@ impl BackendClient for HttpBackendClient {
             encode(tournament_id),
             encode(match_id)
         ));
-        let headers = self.headers();
         let response = self
             .http
             .post(&url)
-            .headers(headers)
+            .headers(self.headers())
             .header(http::header::CONTENT_TYPE, "application/json")
             .body(bytes)
             .send()
@@ -548,6 +600,81 @@ impl BackendClient for HttpBackendClient {
             .map_err(|err| backend_err(&url, err))?;
         error_for_status(&url, response).await?;
         Ok(())
+    }
+
+    #[instrument(
+        skip(self, summary),
+        fields(otel.kind = "client", http.request.method = "PUT", tournament.id = %tournament_id, match.id = %summary.match_id),
+        err,
+    )]
+    async fn record_tournament_match(
+        &self,
+        tournament_id: &str,
+        summary: &MatchSummary,
+    ) -> Result<()> {
+        let url = self.url(&format!(
+            "/tournaments/{}/matches/{}",
+            encode(tournament_id),
+            encode(&summary.match_id)
+        ));
+        let response = self
+            .http
+            .put(&url)
+            .headers(self.headers())
+            .json(summary)
+            .send()
+            .await
+            .map_err(|err| backend_err(&url, err))?;
+        error_for_status(&url, response).await?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip(self, transition),
+        fields(otel.kind = "client", http.request.method = "POST", tournament.id = %tournament_id, tournament.state = %transition.state().as_str()),
+        err,
+    )]
+    async fn transition_tournament(
+        &self,
+        tournament_id: &str,
+        transition: &TournamentTransition,
+    ) -> Result<()> {
+        let url = self.url(&format!("/tournaments/{}/state", encode(tournament_id)));
+        let response = self
+            .http
+            .post(&url)
+            .headers(self.headers())
+            .json(transition)
+            .send()
+            .await
+            .map_err(|err| backend_err(&url, err))?;
+        error_for_status(&url, response).await?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip(self),
+        fields(otel.kind = "client", http.request.method = "GET", tournament.id = %tournament_id),
+        err,
+    )]
+    async fn recorded_tournament(&self, tournament_id: &str) -> Result<Option<RecordedTournament>> {
+        let url = self.url(&format!("/tournaments/{}", encode(tournament_id)));
+        let response = self.get(&url).await.map_err(|err| backend_err(&url, err))?;
+        // The backend's own `404` names no tournament; any other refusal is an error.
+        if response.status() == http::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let response = error_for_status(&url, response).await?;
+        response
+            .json::<RecordedTournament>()
+            .await
+            .map(Some)
+            .map_err(|err| backend_err(&url, err))
+    }
+
+    async fn unfinished_tournaments(&self) -> Result<Vec<RecordedTournament>> {
+        let body: TournamentsBody = self.get_json("/tournaments/unfinished").await?;
+        Ok(body.tournaments)
     }
 
     async fn game_jam_prior_readmes(
@@ -1695,6 +1822,12 @@ fn sign_in_target(location: &str) -> String {
     format!("`{target}`")
 }
 
+/// The body of `GET /tournaments/unfinished`.
+#[derive(Deserialize)]
+struct TournamentsBody {
+    tournaments: Vec<RecordedTournament>,
+}
+
 #[derive(Deserialize)]
 struct ErrorEnvelope {
     error: ErrorEnvelopeInner,
@@ -1712,3 +1845,7 @@ mod tests;
 #[cfg(test)]
 #[path = "lib.edge.test.rs"]
 mod edge_tests;
+
+#[cfg(test)]
+#[path = "lib.tournaments.test.rs"]
+mod tournament_tests;
