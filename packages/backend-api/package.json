@@ -1,6 +1,6 @@
 {
   "name": "@clockwyrks/backend-api",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -69,7 +69,7 @@
     "typescript": "^6"
   },
   "dependencies": {
-    "@clockwyrks/run-record": "^0.2.4"
+    "@clockwyrks/run-record": "^0.2.5"
   },
   "publishConfig": {
     "registry": "https://pkgs.dev.azure.com/genyume/the-test-cabinet/_packaging/the-test-cabinet/npm/registry/"
