@@ -425,6 +425,13 @@ pub struct RunLinks {
     pub source_repo: Option<String>,
     /// The playable build, when one has been published.
     pub playable_build: Option<String>,
+    /// The run's short code, assigned the first time it publishes: the shortest
+    /// prefix of the run id, at least eight characters long, that no published
+    /// run already holds. Never reassigned; the run's share links are built from
+    /// it. `None` until the run's first publish.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub code: Option<String>,
 }
 
 /// The terminal state of a run — the single axis that decides publishability and

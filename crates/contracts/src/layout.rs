@@ -33,8 +33,8 @@ pub const MAX_SHOWCASE_MEDIA_ENTRIES: usize = 10;
 /// The largest media file a showcase carousel entry may name, in bytes. An entry
 /// naming a larger file is dropped with a warning, since the file travels the
 /// per-run media path and a pathological one would bloat every store downstream.
-/// Public because the driver's backend-store mirror applies the same cap to the
-/// directory it uploads, so a file the capture refused never ships either.
+/// Public because the run-side capture and the case-side resolution, in different
+/// crates, both apply it.
 pub const MAX_SHOWCASE_MEDIA_FILE_BYTES: u64 = 25 * 1024 * 1024;
 
 // --- build outputs -----------------------------------------------------------
@@ -108,7 +108,7 @@ pub fn proof_labelled_name<'a>(dest: &'a str, file: &'a str) -> &'a str {
 ///
 /// A proof is addressed everywhere as `<proof-id>.<ext>` — this computes the `<ext>`
 /// from the recorded `dest` so the served name lines up across the producers and
-/// consumers of that name: the driver's backend-store mirror, the backend snapshot
+/// consumers of that name: the artifacts service's run media route, the backend snapshot
 /// builder, and the gallery's `extensionFor` (`packages/ui/.../proofMedia.ts`). The
 /// extension is cosmetic (the file is resolved by its proof-id stem), but it must
 /// agree on all sides or a snapshot key misses the URL the UI requests.
@@ -274,8 +274,8 @@ pub const VALIDATION_IMAGE_PREFIX: &str = "img.";
 /// Whether `file` names a file of a recording's shared image store rather than a
 /// declared output.
 ///
-/// Both publish paths — the driver's mirror into the backend store and the snapshot
-/// builder's upload — are driven off the run record's *declared* outputs. A store
+/// Both publish paths — the artifacts service's media copy to the public bucket and the
+/// snapshot builder's upload — are driven off the run record's *declared* outputs. A store
 /// file is on no record: it backs no verdict and is named by its own bytes, so it
 /// has to be recognized off the directory instead, and this is the one place that
 /// judgement is written down.

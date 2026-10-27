@@ -610,10 +610,10 @@ pub struct PerRun {
     /// the bytes — and a *re-analysis under a newer generation* mints a different key
     /// rather than silently overwriting figures a published snapshot still points at.
     ///
-    /// `None` when the run was never analysed, and also when it was but the document's
-    /// bytes are no longer readable (the backend store is ephemeral) — the bounded summary
-    /// on the record survives either way, so the tab degrades to the figures instead of
-    /// offering a link that 404s.
+    /// `None` when the run was never analysed, and also when it was but the run's tree on
+    /// the artifacts service holds no readable document (the tree was never stored, or has
+    /// been reclaimed) — the bounded summary on the record survives either way, so the tab
+    /// degrades to the figures instead of offering a link that 404s.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "contract", ts(optional))]
     pub code_analysis_key: Option<String>,
@@ -622,7 +622,7 @@ pub struct PerRun {
 /// A proof media file exposed in a per-run document. `id` matches the proof's
 /// declared id (and its `validation.proofs[].id`); `kind` is image or video;
 /// `key` is the snapshot-relative object key of the media.
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct RunProofOut {
@@ -635,7 +635,7 @@ pub struct RunProofOut {
 /// stable served name the result view requests — a single sprite's
 /// `regenerated.png`/`preview.png`/`actions.json` or a sprite sheet's per-frame
 /// `regenerated-<index>.png` (etc.); `key` is its snapshot-relative object key.
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct RunAssetOut {
@@ -650,7 +650,7 @@ pub struct RunAssetOut {
 /// media as published — a video transcoded to `.mp4`, so `key` and `file` differ in
 /// extension for a clip while the name the UI requests still resolves through the
 /// static gallery's map (the validation-media convention).
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct RunShowcaseOut {
@@ -665,7 +665,7 @@ pub struct RunShowcaseOut {
 /// is its snapshot-relative object key, whose bytes are the media as published — a
 /// video transcoded to `.mp4`, so `key` and `file` differ in extension for a clip while
 /// the flat name the UI requests still resolves through the static gallery's map.
-#[derive(Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "contract", derive(ts_rs::TS, schemars::JsonSchema))]
 pub struct RunValidationMediaOut {
@@ -734,6 +734,12 @@ pub struct Review {
 pub struct LinksOut {
     pub source_repo: Option<String>,
     pub playable_build: Option<String>,
+    /// The run's short code (see `RunLinks`), which the
+    /// `tcab.ai` share links resolve through `codes/<code>`. Absent until the
+    /// run's first publish.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "contract", ts(optional))]
+    pub code: Option<String>,
 }
 
 /// A case-metadata document (`cases/<slug>/<version>.json`): the site-facing slice

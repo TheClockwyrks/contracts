@@ -179,3 +179,110 @@ export type TournamentRecord = {
    */
   matches: Array<MatchSummary>;
 };
+
+/**
+ * Where a recorded tournament is in its lifecycle.
+ */
+export type TournamentState = "queued" | "running" | "succeeded" | "failed";
+
+/**
+ * One pairing of a tournament's field: a match recorded before it is played.
+ */
+export type TournamentPairing = {
+  /**
+   * The match id, [`match_id`] of the two seats.
+   */
+  matchId: string;
+  /**
+   * The controller that plays Red.
+   */
+  redId: string;
+  /**
+   * The controller that plays Blue.
+   */
+  blueId: string;
+};
+
+/**
+ * A tournament as the arena records it on acceptance: the field and every
+ * pairing, with no result. (`PUT /tournaments/{id}`)
+ */
+export type PendingTournament = {
+  /**
+   * Unique tournament id (caller-assigned).
+   */
+  id: string;
+  /**
+   * RFC 3339 timestamp the tournament was accepted at.
+   */
+  createdAt: string;
+  /**
+   * The test case the field competes under.
+   */
+  testCaseSlug: string;
+  /**
+   * The exact case version.
+   */
+  testCaseVersion: string;
+  /**
+   * The case variant the canonical match uses.
+   */
+  variant: string;
+  /**
+   * The competing controllers (identity only, no bytes).
+   */
+  participants: Array<ControllerRef>;
+  /**
+   * Every match of the field, in the order it is played.
+   */
+  pairings: Array<TournamentPairing>;
+};
+
+/**
+ * A tournament as the backend holds it, in any state. (`GET /tournaments/{id}`)
+ */
+export type RecordedTournament = {
+  /**
+   * The record. Its `matches` holds the summary of each pairing with a
+   * recorded result, in pairing order, and its `standings` are empty until the
+   * tournament succeeds.
+   */
+  record: TournamentRecord;
+  /**
+   * Where the tournament is in its lifecycle.
+   */
+  state: TournamentState;
+  /**
+   * The failure reason, present when `state` is `failed`.
+   */
+  detail?: string;
+  /**
+   * Every match of the field, in the order it is played.
+   */
+  pairings: Array<TournamentPairing>;
+  /**
+   * RFC 3339 of when the tournament was recorded, and once it succeeds, of when
+   * it succeeded. The gallery's newest-first order.
+   */
+  publishedAt: string;
+};
+
+/**
+ * A move of a recorded tournament's state. (`POST /tournaments/{id}/state`)
+ */
+export type TournamentTransition =
+  | { state: "running" }
+  | {
+      state: "succeeded";
+      /**
+       * The standings, ranked by wins, highest first.
+       */
+      standings: Array<Standing>;
+    }
+  | {
+      state: "failed";
+      /**
+       * Why.
+       */
+      detail: string;
+    };

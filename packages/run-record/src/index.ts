@@ -2136,6 +2136,13 @@ export type RunLinks = {
    * The playable build, when one has been published.
    */
   playableBuild: string | null;
+  /**
+   * The run's short code, assigned the first time it publishes: the shortest
+   * prefix of the run id, at least eight characters long, that no published
+   * run already holds. Never reassigned; the run's share links are built from
+   * it. `None` until the run's first publish.
+   */
+  code?: string;
 };
 
 /**

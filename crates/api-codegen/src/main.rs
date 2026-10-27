@@ -290,7 +290,8 @@ fn main() -> Result<()> {
             file: "tournament.ts",
             decls: ts_decls![&cfg;
                 mp::ControllerKind, mp::ControllerRef, mp::MatchSummary, mp::Standing,
-                mp::TournamentRecord,
+                mp::TournamentRecord, mp::TournamentState, mp::TournamentPairing,
+                mp::PendingTournament, mp::RecordedTournament, mp::TournamentTransition,
             ],
         },
         // The saved gg configurations (`/gg/configs`) and agents (`/gg/agents`): a

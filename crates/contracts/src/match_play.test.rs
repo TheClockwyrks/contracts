@@ -45,3 +45,84 @@ fn replay_filename_is_canonical_then_indexed() {
     assert_eq!(replay_filename(1), "replay-1.json");
     assert_eq!(replay_filename(3), "replay-3.json");
 }
+
+#[test]
+fn a_tournament_state_round_trips_its_wire_spelling() {
+    for state in [
+        TournamentState::Queued,
+        TournamentState::Running,
+        TournamentState::Succeeded,
+        TournamentState::Failed,
+    ] {
+        let wire = serde_json::to_value(state).unwrap();
+        assert_eq!(wire, serde_json::json!(state.as_str()));
+        assert_eq!(TournamentState::parse(state.as_str()), Some(state));
+    }
+    assert_eq!(TournamentState::parse("published"), None);
+    assert!(TournamentState::Succeeded.is_terminal());
+    assert!(TournamentState::Failed.is_terminal());
+    assert!(!TournamentState::Queued.is_terminal());
+    assert!(!TournamentState::Running.is_terminal());
+}
+
+#[test]
+fn a_transition_is_tagged_by_the_state_it_moves_to() {
+    let running = serde_json::to_value(TournamentTransition::Running).unwrap();
+    assert_eq!(running, serde_json::json!({ "state": "running" }));
+    let failed: TournamentTransition =
+        serde_json::from_value(serde_json::json!({ "state": "failed", "detail": "engine" }))
+            .unwrap();
+    assert_eq!(failed.state(), TournamentState::Failed);
+    let succeeded: TournamentTransition =
+        serde_json::from_value(serde_json::json!({ "state": "succeeded", "standings": [] }))
+            .unwrap();
+    assert_eq!(succeeded.state(), TournamentState::Succeeded);
+}
+
+#[test]
+fn the_unplayed_pairings_are_those_without_a_recorded_summary() {
+    let pairing = |red: &str, blue: &str| TournamentPairing {
+        match_id: match_id(red, blue),
+        red_id: red.to_string(),
+        blue_id: blue.to_string(),
+    };
+    let summary = MatchSummary {
+        match_id: match_id("a", "b"),
+        red_id: "a".to_string(),
+        blue_id: "b".to_string(),
+        winner: Some("a".to_string()),
+        win_type: "swept".to_string(),
+        outcome_for_red: AdversarialOutcome::Win,
+        red_score: 1,
+        blue_score: 0,
+        ticks: 10,
+        red_kills: 0,
+        blue_kills: 0,
+        red_fuel: 0,
+        blue_fuel: 0,
+        replay_key: Some(match_id("a", "b")),
+        detail: None,
+    };
+    let recorded = RecordedTournament {
+        record: TournamentRecord {
+            id: "t".to_string(),
+            created_at: "2026-10-26T00:00:00Z".to_string(),
+            test_case_slug: "foray".to_string(),
+            test_case_version: "v1".to_string(),
+            variant: "base".to_string(),
+            participants: Vec::new(),
+            standings: Vec::new(),
+            matches: vec![summary],
+        },
+        state: TournamentState::Running,
+        detail: None,
+        pairings: vec![pairing("a", "b"), pairing("a", "c"), pairing("b", "c")],
+        published_at: "2026-10-26T00:00:00Z".to_string(),
+    };
+    let unplayed: Vec<String> = recorded
+        .unplayed_pairings()
+        .into_iter()
+        .map(|pairing| pairing.match_id)
+        .collect();
+    assert_eq!(unplayed, vec![match_id("a", "c"), match_id("b", "c")]);
+}
